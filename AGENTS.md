@@ -39,4 +39,5 @@ On the host, through `ht` (from Flatpak sandboxes) or directly:
 - `src/shokzctl/state.py`: state contract shared by CLI and future GUI.
 - `src/shokzctl/output.py`: readable and JSON formatters, redaction.
 - `src/shokzctl/errors.py`: error categories and exit codes.
+- `src/shokzctl/protocol/`: pure frame, command and reply codecs. No I/O. Not wired to any transport yet.
 - `docs/`: protocol analysis, hardware matrix, test results.

@@ -2,7 +2,7 @@
 
 Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth. Fedora's audio stack keeps handling playback and calls; shokzctl is for headset settings.
 
-**Status:** passive diagnostics only. EQ and other settings need protocol evidence and a controlled hardware test first (see `docs/`).
+**Status:** passive diagnostics only. Protocol codecs exist and are tested offline against source evidence, but nothing talks to the headset yet: the first management query needs a controlled hardware test (see `docs/protocol-analysis.md`).
 
 ## Use
 

@@ -1,0 +1,22 @@
+{
+  "reference": {
+    "repository": "https://codeberg.org/Freeyourgadget/Gadgetbridge",
+    "commit": "37f76243b7e78632ea3ea338f59f8318ecf9d417"
+  },
+  "vectors": [
+    {
+      "name": "firmware_get_request",
+      "hex": "a55a2c000100000028005ab701000000200000000200000004000000020000000300000004000000020000000400000000000000",
+      "kind": "upstream unit-test vector",
+      "source": "app/src/test/java/nodomain/freeyourgadget/gadgetbridge/service/devices/shokz/ShokzSupportTest.kt:9-12"
+    }
+  ],
+  "pro2_equalizer_set_args": {
+    "kind": "pinned source fact, model-specific; upstream says captured from the official app on a real OpenRun Pro 2",
+    "source": "app/src/main/java/nodomain/freeyourgadget/gadgetbridge/devices/shokz/ShokzOpenRunPro2Coordinator.kt:49-65",
+    "STANDARD": "0100000000000000",
+    "VOCAL": "02fafe0405010000",
+    "BASS": "0309f90000000000",
+    "TREBLE": "0400000104050000"
+  }
+}
