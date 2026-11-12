@@ -11,6 +11,13 @@
       "source": "app/src/test/java/nodomain/freeyourgadget/gadgetbridge/service/devices/shokz/ShokzSupportTest.kt:9-12"
     }
   ],
+  "hardware_replies": {
+    "kind": "hardware capture: replies received by shokzctl e559b79 on Fedora 44 from an OpenRun Pro 2, firmware BOS_HU_R_47_20251023, 2026-11-13",
+    "source": "local/traces/2026-11-13-m3-2-all-reads.jsonl (outside Git); contains no identifiers",
+    "firmware_ret": "a55a4f00010100004b00c7c80100000043000000020000000400000002000000030000000400000002800000040000002300000000424f535f48555f525f34375f32303235313032330000000000000000000000000000",
+    "battery_ret": "a55a3000010100002c00fd0d010000002400000002000000040000000200000003000000040000000380000004000000040000000005ff00",
+    "equalizer_ret": "a55a3400010100003000b218010000002800000002000000040000000200000003000000040000000880000004000000080000000001000000000000"
+  },
   "pro2_equalizer_set_args": {
     "kind": "pinned source fact, model-specific; upstream says captured from the official app on a real OpenRun Pro 2",
     "source": "app/src/main/java/nodomain/freeyourgadget/gadgetbridge/devices/shokz/ShokzOpenRunPro2Coordinator.kt:49-65",

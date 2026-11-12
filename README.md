@@ -2,7 +2,7 @@
 
 Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth. Fedora's audio stack keeps handling playback and calls; shokzctl is for headset settings.
 
-**Status:** passive diagnostics only. Protocol codecs exist and are tested offline against source evidence, but nothing talks to the headset yet: the first management query needs a controlled hardware test (see `docs/protocol-analysis.md`).
+**Status:** read-only. `status` reads firmware, battery and the active EQ from the headset; verified on firmware `BOS_HU_R_47_20251023` (`docs/test-results.md`). Changing EQ is the next milestone and isn't implemented.
 
 ## Use
 
@@ -10,9 +10,13 @@ Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth. Fedora's audio stack ke
 shokzctl diagnose            # what BlueZ knows about the headset
 shokzctl diagnose --json     # same, as JSON (schema shokzctl.diagnose/1)
 shokzctl diagnose --watch    # print again whenever something changes; Ctrl-C to stop
+shokzctl status              # read firmware, battery and EQ from the headset
+shokzctl status --query firmware --trace local/trace.jsonl
 ```
 
 `diagnose` is passive. It reads BlueZ's state over the system D-Bus and sends nothing to the headset: no scanning, pairing, connecting, or headset queries. Battery comes from BlueZ's `Battery1` when the headset reports it there; otherwise it shows as unknown.
+
+`status` opens the headset's management channel (RFCOMM, service `0xFEF0`, through BlueZ's profile API) and only reads. The headset must already be connected to Fedora; close the Shokz phone app first so it doesn't hold the channel. One `status` runs at a time per user. `--trace FILE` records every byte as JSON lines; the repo ignores `local/`.
 
 Output redacts addresses so it can be shared. `--show-identifiers` prints them in full. With more than one paired OpenRun Pro 2, pick one with `--device ADDRESS` (and `--adapter hciN` if it's known on several adapters).
 

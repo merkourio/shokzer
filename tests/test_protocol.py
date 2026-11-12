@@ -235,3 +235,45 @@ def test_unhandled_messages_are_named_when_known() -> None:
         Message(0x03, 0x0005, b"\x08"), "VOLUME_NOTIFY"
     )
     assert decode(Message(0x07, 0x1234)) == Unhandled(Message(0x07, 0x1234), None)
+
+
+# --- replies captured from the headset (see fixture provenance) -------------------------------
+
+CAPTURED = VECTORS["hardware_replies"]
+
+
+def captured(name: str) -> tuple[bytes, Message]:
+    frames = StreamDecoder().feed(bytes.fromhex(CAPTURED[name]))
+    assert len(frames) == 1
+    assert frames[0].crc_valid
+    return frames[0].flags, decode_payload(frames[0].payload)
+
+
+@pytest.mark.parametrize("name", ["firmware_ret", "battery_ret", "equalizer_ret"])
+def test_captured_replies_follow_the_framing(name: str) -> None:
+    data = bytes.fromhex(CAPTURED[name])
+    frame_len, payload_len = struct.unpack_from("<H4xH", data, 2)
+    assert frame_len == payload_len + 4
+    flags, _ = captured(name)
+    assert flags == b"\x01\x01\x00\x00", "replies set header byte 5; requests send 0"
+
+
+def test_captured_firmware_reply() -> None:
+    _, message = captured("firmware_ret")
+    assert (message.group, message.code) == FIRMWARE_GET.reply
+    assert decode(message) == Firmware("BOS_HU_R_47_20251023")
+
+
+def test_captured_battery_reply() -> None:
+    _, message = captured("battery_ret")
+    assert (message.group, message.code) == BATTERY_GET.reply
+    assert message.args == b"\x00\x05\xff\x00"  # trailing ff 00: meaning unknown, ignored
+    assert decode(message) == Battery(60, 5)
+
+
+def test_captured_equalizer_reply() -> None:
+    _, message = captured("equalizer_ret")
+    assert (message.group, message.code) == EQUALIZER_GET.reply
+    assert decode(message) == Equalizer(
+        code=1, preset=EqPreset.STANDARD, bands=None, unprompted=False
+    )

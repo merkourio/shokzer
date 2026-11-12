@@ -153,3 +153,13 @@ async def test_bluez_disconnect_request_fails_the_query(lock: SessionLock) -> No
     with pytest.raises(ShokzError, match="BlueZ closed"):
         await read_status(report_for(), connector, reply_timeout=1, lock=lock)
     assert connector.closed
+
+
+def test_only_reads_are_verified_for_the_tested_firmware() -> None:
+    tested = caps.capabilities("BOS_HU_R_47_20251023")
+    assert {k for k, v in tested.items() if v is Support.SUPPORTED} == {
+        "firmware_query",
+        "battery_query",
+        "eq_read",
+    }
+    assert set(caps.capabilities("HU_R_47_20251023").values()) == {Support.UNRESOLVED}

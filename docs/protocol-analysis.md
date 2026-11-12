@@ -19,7 +19,7 @@ Paths below are relative to `app/src/main/java/nodomain/freeyourgadget/gadgetbri
 4. **Offline tested here**: our tests pass against tier-2/3 evidence.
 5. **Hardware verified here**: observed on Markos's headset from Fedora, recorded in `test-results.md`.
 
-No operation is tier 5 yet.
+Tier 5 so far: the management channel, firmware read, battery read and EQ read (2026-11-13, `test-results.md` M3).
 
 ## Transport
 
@@ -37,7 +37,7 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 |---|---|---|---|
 | 0 | 2 | Preamble `A5 5A` | `0x5aa5` written LE (Support:964) |
 | 2 | 2 | Frame length after byte 8 | Encoder writes payload length + 4 |
-| 4 | 4 | Header flags | Encoder writes `01 00 00 00`. Decoder comments: byte 4 "always 1?", byte 5 "isAck?", bytes 6-7 "always 0?" (Support:140-142). Unknown meaning |
+| 4 | 4 | Header flags | Encoder writes `01 00 00 00`. Decoder comments: byte 4 "always 1?", byte 5 "isAck?", bytes 6-7 "always 0?" (Support:140-142). **Observed on Pro 2:** every reply carried `01 01 00 00`, so byte 5 = 1 marks a reply. Not used for matching |
 | 8 | 2 | Payload length | |
 | 10 | 2 | CRC-16/MAXIM of the payload | Reflected poly 0x8005, init 0, xorout 0xFFFF (`util/CheckSums.java:223-241`) |
 | 12 | n | Payload | TLV-like, all u32: `1, len(rest), 2, 4, group, 3, 4, code, 4, len(args), args` |
@@ -59,9 +59,9 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 
 | Operation | Scope | Request → reply | Source | Tier | Open questions |
 |---|---|---|---|---|---|
-| Firmware read | Shared | `0x02/0x0002`, no args → `0x02/0x8002`: `00`, then NUL-terminated string | Cmd:26-27; Support:83, 399-417; test vector ShokzSupportTest.kt:9-12 | 2, 3 (encoding), 4 | Does the reply string equal the app's `HU_R_47_20251023`? |
-| Battery read | Shared | `0x02/0x0003` → `0x02/0x8003`: `00`, level byte *b*; percent = (*b* + 1) × 10 | Cmd:7-8; Support:442-457 | 2, 4 | Is the scale right on Pro 2 (BlueZ showed 60 %)? Headset sends no battery notifications (Coord:42-46) |
-| EQ read | Shared | `0x02/0x0008` → `0x02/0x8008`: `00`, preset code; if custom, 5 signed band bytes follow | Cmd:23-24; Support:459-507 | 2, 4 | Are bands present on Pro 2 replies? |
+| Firmware read | Shared | `0x02/0x0002`, no args → `0x02/0x8002`: `00`, then NUL-terminated string | Cmd:26-27; Support:83, 399-417; test vector ShokzSupportTest.kt:9-12 | 2, 3 (encoding), 4, **5** | Resolved: headset reports `BOS_HU_R_47_20251023`, the app shows it without `BOS_`. Reply args are padded with 13 zero bytes after the NUL |
+| Battery read | Shared | `0x02/0x0003` → `0x02/0x8003`: `00`, level byte *b*; percent = (*b* + 1) × 10 | Cmd:7-8; Support:442-457 | 2, 4, **5** | Scale matched BlueZ once (byte 5 → 60 %). Reply args were `00 05 ff 00`: meaning of `ff 00` unknown, ignored. Headset sends no battery notifications (Coord:42-46) |
+| EQ read | Shared | `0x02/0x0008` → `0x02/0x8008`: `00`, preset code; if custom, 5 signed band bytes follow | Cmd:23-24; Support:459-507 | 2, 4, **5** | Standard read back as code 1 with args `00 01` + six zero bytes; whether those six carry tuning or custom bands is open |
 | EQ change notice | Shared | Headset sends `0x03/0x0009`: preset code (no status byte). Gadgetbridge calls it `EQUALIZER_ACK` | Cmd:22; Support:459-507 | 2, 4 | Sent after our own writes, after button changes, or both? |
 | EQ set acknowledgement | Shared | `0x01/0x800e` (`EQ_UNK_ACK_1`); args not decoded; Gadgetbridge logs it as unhandled but it releases the queue | Cmd:21; Support:388-390, 748 | 2 | Args meaning; does it mean accepted or just received? |
 | Standard preset | **Pro 2** | `0x01/0x000e` args `01 00 00 00 00 00 00 00` | Pro2:49-53 | 2, 3 ("captured from a live HCI snoop of the official app"), 4 | Readback, audible effect, persistence |
@@ -78,9 +78,9 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 
 - Replies are matched on group and code, not code alone.
 - Writes are never resent blindly. Timeout on a write leaves the outcome uncertain until an `EQUALIZER_GET` confirms it.
-- Frames whose two length fields disagree are treated as noise; the decoder rescans for the next `A5 5A` one byte at a time instead of skipping two bytes. **Open:** confirm the headset's frames always satisfy *frame length = payload length + 4*. The rule comes from the encoder only.
+- Frames whose two length fields disagree are treated as noise; the decoder rescans for the next `A5 5A` one byte at a time instead of skipping two bytes. All three Pro 2 replies seen so far satisfy *frame length = payload length + 4*.
 
-## Transport plan for M3 (not implemented)
+## Transport (implemented, verified at M3)
 
 Use BlueZ's profile API rather than opening RFCOMM by channel number, so BlueZ does the SDP lookup and we never guess a channel:
 
@@ -89,29 +89,30 @@ Use BlueZ's profile API rather than opening RFCOMM by channel number, so BlueZ d
 3. `Device1.ConnectProfile("0000fef0-…")`. BlueZ looks up the channel and passes us the socket in `Profile1.NewConnection(device, fd, props)`.
 4. Close the fd and call `DisconnectProfile`, then `UnregisterProfile`, on exit or failure.
 
-**Open:** that BlueZ's client-role external profile resolves the channel from this headset's SDP record. Verify at M3. If it doesn't, stop and decide; no channel probing.
+Verified 2026-11-13: BlueZ resolved the channel from SDP and delivered the socket; first open 2.08 s, later ones about 0.5 s. Code: `src/shokzctl/transport/management.py`.
 
-## Proposed first hardware action (needs Markos's approval)
+## First hardware action (done, M3)
 
-One read-only query whose answer is already known from the Shokz app.
+`FIRMWARE_GET` alone, then `FIRMWARE_GET`, `BATTERY_GET`, `EQUALIZER_GET`. All passed; details in `test-results.md`.
 
-**Preconditions:** headset connected to Fedora only, with the Shokz app force-stopped on the Pixel 10 (or the phone's Bluetooth off) so nothing else holds the management channel. Fedora playback paused or at low volume. Markos present.
+## Proposed EQ write test (M4, needs Markos's approval)
+
+Not implemented yet. It needs `shokzctl eq get` and `eq set standard|vocal` first, built on `status`. A write counts as **confirmed** only when `EQUALIZER_GET` reads the new preset back. The `0x01/0x800e` acknowledgement is logged but treated as "received", not "applied". If a write gets no reply, the outcome is **uncertain**: the next step is a read, never a resend.
+
+**Preconditions:** same as M3, plus music playing from Fedora at low volume so the change is audible. The starting EQ is Standard (read at M3; read again first).
+
+**Bytes** (encoder output, args from Pro2:49-56):
+
+```text
+EQUALIZER_SET Vocal:    a55a34000100000030006d10010000002800000002000000040000000100000003000000040000000e000000040000000800000002fafe0405010000
+EQUALIZER_SET Standard: a55a3400010000003000c218010000002800000002000000040000000100000003000000040000000e00000004000000080000000100000000000000
+```
 
 **Steps:**
 
-1. `diagnose` shows the headset connected.
-2. Register the profile and `ConnectProfile` for `0xFEF0` (opens the RFCOMM channel only).
-3. Write exactly these 52 bytes, `FIRMWARE_GET`:
+1. `eq get` → expect Standard.
+2. `eq set vocal` → expect `0x01/0x800e` (and maybe `0x03/0x0009`), then readback Vocal. Markos listens for the change.
+3. `eq set standard` → readback Standard. Markos confirms it sounds as before.
+4. Persistence, separately: set Vocal, Markos turns the headset off and on, `eq get`, then restore Standard and read back.
 
-   ```text
-   a55a2c000100000028005ab701000000200000000200000004000000020000000300000004000000020000000400000000000000
-   ```
-
-4. Wait up to 2 s for a frame with group `0x02`, code `0x8002`. Log every received frame raw (redacted log, kept outside Git).
-5. Close the socket, `DisconnectProfile`, unregister. Run `diagnose` again.
-
-**Expected:** firmware string `HU_R_47_20251023`. Audio connection unaffected.
-
-**Stop** on: no reply (don't resend), a different reply, CRC failure, audio dropouts, headset reset or disconnect, or any sound from the headset. Recover with a normal reconnect or power cycle, or the Shokz app; never with guessed packets.
-
-After that passes: `BATTERY_GET` and `EQUALIZER_GET` the same way, then the low-volume Standard → Vocal → restore sequence from the technical plan.
+**Stop** on: a readback that doesn't match, no acknowledgement *and* no readback, an unexpected reply, or anything odd in the audio. Restore with `eq set standard` only if the channel still works normally; otherwise use the Shokz app.

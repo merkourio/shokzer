@@ -22,7 +22,11 @@ PROPRIETARY_FEATURES = (
     "multipoint",
 )
 
-VERIFIED: Mapping[str, frozenset[str]] = {}
+# Keyed by the firmware string the headset itself reports (FIRMWARE_RET), not the app's label.
+VERIFIED: Mapping[str, frozenset[str]] = {
+    # 2026-11-13, Fedora 44, shokzctl e559b79: docs/test-results.md "M3".
+    "BOS_HU_R_47_20251023": frozenset({"firmware_query", "battery_query", "eq_read"}),
+}
 
 
 def name_matches_model(name: str | None) -> bool:

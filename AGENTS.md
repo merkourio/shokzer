@@ -14,7 +14,7 @@ shokzctl manages settings on a Shokz OpenRun Pro 2 from Fedora. Fedora's audio s
 ## Tests
 
 - Ordinary tests are offline. `tests/conftest.py` blocks real D-Bus connections outside hardware tests.
-- Hardware tests are marked `hardware` and run only with both `SHOKZ_HARDWARE=1` and `SHOKZ_DEVICE=<address>`. Collection never touches hardware.
+- Hardware tests are marked `hardware` and run only with both `SHOKZ_HARDWARE=1` and `SHOKZ_DEVICE=<address>`. Collection never touches hardware. `tests/hardware/test_status_read.py` sends the three verified read-only queries; nothing in `tests/hardware` may write.
 - Fixtures come from evidence (source-derived or sanitized captures), labelled with their provenance. Never use packet examples from older OpenRun tools.
 
 ## Checks
@@ -39,5 +39,9 @@ On the host, through `ht` (from Flatpak sandboxes) or directly:
 - `src/shokzctl/state.py`: state contract shared by CLI and future GUI.
 - `src/shokzctl/output.py`: readable and JSON formatters, redaction.
 - `src/shokzctl/errors.py`: error categories and exit codes.
-- `src/shokzctl/protocol/`: pure frame, command and reply codecs. No I/O. Not wired to any transport yet.
+- `src/shokzctl/protocol/`: pure frame, command and reply codecs. No I/O.
+- `src/shokzctl/transport/management.py`: BlueZ profile API connector for the RFCOMM management channel.
+- `src/shokzctl/session.py`: one request in flight, replies matched on group and code, no resends.
+- `src/shokzctl/status.py`: read-only queries. `capabilities.py` lists what's verified per firmware.
+- `src/shokzctl/lock.py`, `trace.py`: one session per user; JSON-lines byte traces.
 - `docs/`: protocol analysis, hardware matrix, test results.
