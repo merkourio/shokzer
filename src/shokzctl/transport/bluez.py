@@ -334,8 +334,14 @@ def bluez_not_running() -> ShokzError:
 
 
 async def connect_system_bus() -> SystemBusConnection:
+    return SystemBusConnection(await open_system_bus())
+
+
+async def open_system_bus(*, negotiate_unix_fd: bool = False) -> MessageBus:
     try:
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        return await MessageBus(
+            bus_type=BusType.SYSTEM, negotiate_unix_fd=negotiate_unix_fd
+        ).connect()
     except PermissionError as error:
         raise ShokzError(
             ErrorCategory.PERMISSION, f"Not allowed to open the system D-Bus ({error})."
@@ -346,7 +352,6 @@ async def connect_system_bus() -> SystemBusConnection:
             f"The system D-Bus isn't reachable ({error}).",
             hint="Run on the Fedora host, not inside a sandbox without system-bus access.",
         ) from error
-    return SystemBusConnection(bus)
 
 
 class SystemBusConnection:

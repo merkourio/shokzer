@@ -47,6 +47,10 @@ def device(
     connected: bool = True,
     paired: bool = True,
     battery: int | None = None,
+    uuids: tuple[str, ...] = (
+        "0000110B-0000-1000-8000-00805F9B34FB",
+        "0000FEF0-0000-1000-8000-00805F9B34FB",
+    ),
 ) -> Interfaces:
     props: dict[str, Any] = {
         "Address": address,
@@ -57,7 +61,7 @@ def device(
         "Trusted": paired,
         "Connected": connected,
         "ServicesResolved": connected,
-        "UUIDs": ["0000110B-0000-1000-8000-00805F9B34FB"],
+        "UUIDs": list(uuids),
     }
     if name is not None:
         props["Name"] = name

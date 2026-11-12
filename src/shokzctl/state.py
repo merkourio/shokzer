@@ -20,6 +20,7 @@ class Connection(StrEnum):
 
 class ManagementTransport(StrEnum):
     UNRESOLVED = "unresolved"
+    RFCOMM = "rfcomm"
 
 
 class SessionState(StrEnum):
@@ -97,6 +98,7 @@ class DiagnoseReport:
     selection: Literal["automatic", "explicit"]
     identity: Identity
     firmware: Observed[str] = field(default_factory=Observed)
+    headset_battery: Observed[int] = field(default_factory=Observed)
     active_eq: Observed[str] = field(default_factory=Observed)
     management_transport: ManagementTransport = ManagementTransport.UNRESOLVED
     management_session: SessionState = SessionState.CLOSED

@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 import pytest
+from fake_headset import TEST_FIRMWARE, FakeConnector, FakeHeadset
 from fakes import (
     HCI0,
     HEADSET,
@@ -21,7 +22,8 @@ from fakes import (
 from shokzctl.cli import _watch, run
 from shokzctl.device import Selector
 from shokzctl.errors import ErrorCategory, ExitCode, ShokzError
-from shokzctl.output import DIAGNOSE_SCHEMA, Formatter
+from shokzctl.lock import SessionLock
+from shokzctl.output import DIAGNOSE_SCHEMA, STATUS_SCHEMA, Formatter
 from shokzctl.transport.bluez import DEVICE, BluezObserver, Snapshot
 
 HEADSET_PATH = device_path(HEADSET)
@@ -62,6 +64,7 @@ def test_json_report_shape_is_stable() -> None:
         "selection",
         "identity",
         "firmware",
+        "headset_battery_percent",
         "active_eq",
         "management",
         "protocol",
@@ -230,3 +233,94 @@ async def test_watch_prints_on_change_and_survives_bluez_restart() -> None:
     assert states == ["connected", "disconnected", "unavailable", "connected"]
     assert lines[-1]["report"]["device"]["battery_percent"]["value"] == 55
     assert all("observed_at" in line for line in lines)
+
+
+# --- status ----------------------------------------------------------------------------------
+
+
+def status(bluez: Any, connector: Any, tmp_path: Any, *args: str) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = run(
+        ["status", *args],
+        connect=bluez,
+        open_connector=connector,
+        lock=SessionLock(tmp_path / "lock"),
+        out=out,
+        err=err,
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_status_json(tmp_path: Any) -> None:
+    connector = FakeConnector()
+    code, out, _ = status(FakeBluez(headset_tree(battery=60)), connector, tmp_path, "--json")
+    assert code == ExitCode.OK
+    data = json.loads(out)
+    assert data["schema"] == STATUS_SCHEMA
+    report = data["report"]
+    assert report["firmware"] == {"value": TEST_FIRMWARE, "source": "headset:FIRMWARE_GET"}
+    assert report["headset_battery_percent"]["value"] == 60
+    assert report["active_eq"]["value"] == "standard"
+    assert report["protocol"] == {"readiness": "ready"}
+    assert report["management"] == {"transport": "rfcomm", "session": "open"}
+    assert HEADSET not in out
+
+
+def test_status_readable(tmp_path: Any) -> None:
+    code, out, _ = status(FakeBluez(headset_tree(battery=60)), FakeConnector(), tmp_path)
+    assert code == ExitCode.OK
+    assert f"Firmware    {TEST_FIRMWARE} (headset FIRMWARE_GET)" in out
+    assert "60 % (BlueZ Battery1), 60 % (headset BATTERY_GET)" in out
+    assert "Active EQ   standard (headset EQUALIZER_GET)" in out
+
+
+def test_status_disconnected_headset(tmp_path: Any) -> None:
+    connector = FakeConnector()
+    code, _, err = status(FakeBluez(headset_tree(connected=False)), connector, tmp_path)
+    assert code == ExitCode.UNAVAILABLE
+    assert "isn't connected" in err
+    assert not connector.opened
+
+
+def test_status_query_selection(tmp_path: Any) -> None:
+    connector = FakeConnector()
+    code, _, _ = status(FakeBluez(headset_tree()), connector, tmp_path, "--query", "firmware")
+    assert code == ExitCode.OK
+    assert len(connector.headset.sent) == 1
+
+
+def test_status_timeout_exit_code(tmp_path: Any) -> None:
+    connector = FakeConnector(FakeHeadset(replies={}))
+    code, out, _ = status(
+        FakeBluez(headset_tree()), connector, tmp_path, "--json", "--reply-timeout", "0.05"
+    )
+    assert code == ExitCode.TIMEOUT
+    assert json.loads(out)["error"]["category"] == "timeout"
+    assert connector.closed
+
+
+def test_status_trace_file(tmp_path: Any) -> None:
+    trace = tmp_path / "local" / "trace.jsonl"
+    code, _, _ = status(
+        FakeBluez(headset_tree()),
+        FakeConnector(),
+        tmp_path,
+        "--query",
+        "firmware",
+        "--trace",
+        str(trace),
+    )
+    assert code == ExitCode.OK
+    lines = [json.loads(line) for line in trace.read_text().splitlines()]
+    assert [line["event"] for line in lines] == [
+        "start",
+        "connect",
+        "open",
+        "tx",
+        "rx",
+        "reply",
+        "closed",
+        "result",
+    ]
+    assert lines[-1]["firmware"] == TEST_FIRMWARE
+    assert HEADSET not in trace.read_text()

@@ -11,6 +11,9 @@ from .errors import ShokzError
 from .state import AdapterInfo, DeviceInfo, DiagnoseReport, Observed
 
 DIAGNOSE_SCHEMA = "shokzctl.diagnose/1"
+STATUS_SCHEMA = "shokzctl.status/1"
+
+_SOURCE_LABELS = {"bluez:org.bluez.Battery1.Percentage": "BlueZ Battery1"}
 
 
 def redact_address(address: str | None) -> str | None:
@@ -23,8 +26,9 @@ def redact_address(address: str | None) -> str | None:
 
 
 class Formatter:
-    def __init__(self, *, show_identifiers: bool) -> None:
+    def __init__(self, *, show_identifiers: bool, schema: str = DIAGNOSE_SCHEMA) -> None:
         self.show_identifiers = show_identifiers
+        self.schema = schema
 
     def address(self, address: str | None) -> str | None:
         return address if self.show_identifiers else redact_address(address)
@@ -44,6 +48,7 @@ class Formatter:
                     "model_verified": report.identity.model_verified,
                 },
                 "firmware": _observed(report.firmware),
+                "headset_battery_percent": _observed(report.headset_battery),
                 "active_eq": _observed(report.active_eq),
                 "management": {
                     "transport": report.management_transport.value,
@@ -67,7 +72,7 @@ class Formatter:
 
     def _envelope(self, *, ok: bool, **payload: Any) -> dict[str, Any]:
         return {
-            "schema": DIAGNOSE_SCHEMA,
+            "schema": self.schema,
             "ok": ok,
             "redacted": not self.show_identifiers,
             **payload,
@@ -107,12 +112,18 @@ class Formatter:
         d, a = report.device, report.adapter
         bearers = ", ".join(b.upper().replace("BREDR", "BR/EDR") for b in d.bearers)
         connection = d.connection.value + (f" ({bearers})" if bearers else "")
-        battery = f"{d.battery.value} % (BlueZ Battery1)" if d.battery.known else "unknown"
-        model = (
-            f"name matches {MODEL_NAME}; not verified"
-            if report.identity.name_matches_model
-            else f"name doesn't match {MODEL_NAME}"
-        )
+        batteries = [
+            f"{b.value} % ({_label(b.source)})"
+            for b in (d.battery, report.headset_battery)
+            if b.known
+        ]
+        battery = ", ".join(batteries) or "unknown"
+        if report.identity.model_verified:
+            model = f"{MODEL_NAME}, verified firmware"
+        elif report.identity.name_matches_model:
+            model = f"name matches {MODEL_NAME}; not verified"
+        else:
+            model = f"name doesn't match {MODEL_NAME}"
         power = {True: "powered on", False: "powered off", None: "power unknown"}[a.powered]
         adapter = " ".join(p for p in (a.name, self.address(a.address), power) if p)
         management = (
@@ -157,4 +168,14 @@ def _observed[T](observed: Observed[T]) -> dict[str, Any]:
 
 
 def _text[T](observed: Observed[T]) -> str:
-    return "unknown" if observed.value is None else str(observed.value)
+    if observed.value is None:
+        return "unknown"
+    return f"{observed.value} ({_label(observed.source)})"
+
+
+def _label(source: str | None) -> str:
+    if source is None:
+        return "no source"
+    if source.startswith("headset:"):
+        return "headset " + source.removeprefix("headset:")
+    return _SOURCE_LABELS.get(source, source)
