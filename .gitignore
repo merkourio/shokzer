@@ -1,0 +1,25 @@
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build outputs
+build/
+dist/
+*.egg-info/
+
+# Reference checkouts (pinned commit is recorded in docs/protocol-analysis.md)
+reference/
+
+# Raw evidence never goes into Git: captures, bug reports, logs, identifiers
+captures/
+*.btsnoop
+*.cfa
+*.pcap
+*.pcapng
+bugreport-*.zip
+*.log
+local/
