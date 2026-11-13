@@ -97,3 +97,17 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 | G Android comparison | Skipped | Android build and app version not recorded |
 
 **Result:** every built feature is now verified on this firmware (`capabilities.VERIFIED`). Offline suite: 235 passed.
+
+## 2026-11-13 — clean-environment checks for the first release (0.1.0)
+
+Run in fresh podman containers from the committed tree (`88ae4ff`), so nothing from the development machine leaks in. No Bluetooth hardware in containers: `diagnose` exits 3 with "system D-Bus isn't reachable", as intended.
+
+| Environment | Checked | Result |
+|---|---|---|
+| Fedora 44 (Python 3.14.10, dbus-fast 2.45.1, libadwaita 1.9.4) | GUI tests on Broadway, RPM build with `%check`, AppStream and desktop validation, install, run, remove | Pass: 6 GUI, 235 offline; 0 files left after removal |
+| Fedora 43 (Python 3.14.10, dbus-fast 2.44.3, libadwaita 1.8.8) | Same up to install and run | Pass |
+| Debian 13 | `install.sh` with the app, desktop entry and icon, `--uninstall`; pipx with `--system-site-packages` | Pass |
+| Ubuntu 24.04 (Python 3.12.3, PyGObject 3.48) | `install.sh` falls back to the CLI and names the too-old PyGObject; `shokzer-gui` explains the same; full offline suite on Python 3.12 | Pass: 235 offline |
+| shellcheck | `install.sh`, `packaging/build-rpm.sh` | Clean |
+
+Not run yet: the GitHub Actions workflows themselves (they run on the first push and tag) and a COPR build.
