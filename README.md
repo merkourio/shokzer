@@ -70,7 +70,7 @@ Shokzer talks to the headset over its Bluetooth management channel (RFCOMM, serv
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful contribution right now.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful contribution right now. Please follow the [code of conduct](CODE_OF_CONDUCT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

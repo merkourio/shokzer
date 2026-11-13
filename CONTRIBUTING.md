@@ -1,6 +1,6 @@
 # Contributing
 
-Firmware reports, bug reports and pull requests are all welcome.
+Firmware reports, bug reports and pull requests are all welcome. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Security problems go through [SECURITY.md](SECURITY.md), not public issues.
 
 ## Firmware reports
 
@@ -47,6 +47,18 @@ Read [AGENTS.md](AGENTS.md) first. In short:
 - Every byte sent needs evidence: a source reference (with commit, file and lines) or a capture, recorded in `docs/protocol-analysis.md`. No guessed commands or probing.
 - A write reads the current value first, sends once, and is confirmed only by reading it back. Never resend a write.
 - Test new hardware behaviour at low volume, restore the original setting, and record the result in `docs/test-results.md`.
+
+## Pull requests
+
+- For anything bigger than a small fix, open an issue first so we can agree on the approach.
+- Keep each pull request to one change, with tests, and fill in the checklist in the template.
+- Add user-facing changes to `CHANGELOG.md` under `## Unreleased`.
+- CI has to pass before merging. Pull requests are squash-merged, so the title becomes the commit message: write it as what the change does.
+- Never commit real device addresses, names, raw captures or logs (see AGENTS.md).
+
+## Licence
+
+Shokzer is licensed under AGPL-3.0-or-later. By submitting a contribution, you agree that it's licensed under the same terms. You keep your copyright, and there's no CLA to sign. Only submit work you have the right to license this way. If part of it comes from other code, say where from and check that its licence is compatible (see [docs/licensing.md](docs/licensing.md)).
 
 ## Releasing
 
