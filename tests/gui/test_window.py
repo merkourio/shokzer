@@ -17,7 +17,7 @@ import pytest
 from fakes import OWNER, headset_tree
 from sim_headset import PHONE, THIS_COMPUTER
 
-from shokzer.capabilities import PROPRIETARY_FEATURES
+from shokzer.capabilities import PROPRIETARY_FEATURES, capabilities
 from shokzer.device import Selector, build_report
 from shokzer.protocol.commands import EqPreset
 from shokzer.protocol.responses import (
@@ -101,11 +101,17 @@ def states() -> dict[str, ViewState]:
             multipoint=multipoint(),
         ),
         "busy": base_state(capabilities=all_supported(), busy="Setting Vocal", pending="eq:vocal"),
+        "classic": base_state(
+            capabilities=capabilities(FIRMWARE),
+            eq=Equalizer(8, EqPreset.CLASSIC, None, False),
+        ),
         "no-headset": ViewState(bluez_error="BlueZ isn't running."),
     }
 
 
-@pytest.mark.parametrize("name", ["untested-firmware", "all-verified", "busy", "no-headset"])
+@pytest.mark.parametrize(
+    "name", ["untested-firmware", "all-verified", "busy", "no-headset", "classic"]
+)
 def test_window_renders(gtk: Any, name: str, tmp_path: Path) -> None:
     _adw, glib, gtk_mod = gtk
     from shokzer.ui.window import MainWindow
@@ -124,6 +130,7 @@ def test_window_renders(gtk: Any, name: str, tmp_path: Path) -> None:
         assert connections_visible
         assert window._preset_rows[EqPreset.VOCAL].get_sensitive()
         assert window._preset_checks[EqPreset.STANDARD].get_active()
+        assert "Not hardware-verified" in window._preset_rows[EqPreset.CLASSIC].get_subtitle()
     if name == "all-verified":
         assert not window._banner.get_revealed()
         assert custom_visible
@@ -133,6 +140,14 @@ def test_window_renders(gtk: Any, name: str, tmp_path: Path) -> None:
     if name == "busy":
         assert not window._refresh.get_sensitive()
         assert window._preset_spinners[EqPreset.VOCAL].get_visible()
+        assert not window._preset_rows[EqPreset.CLASSIC].get_sensitive()
+    if name == "classic":
+        assert not window._banner.get_revealed()
+        assert window._preset_checks[EqPreset.CLASSIC].get_active()
+        assert not window._preset_checks[EqPreset.STANDARD].get_active()
+        assert window._preset_rows[EqPreset.CLASSIC].get_sensitive()
+        assert window._preset_rows[EqPreset.CLASSIC].get_subtitle() == "Air speaker off"
+        assert window._preset_rows[EqPreset.STANDARD].get_title() == "Standard (Hybrid)"
     if name == "no-headset":
         assert window._stack.get_visible_child_name() == "missing"
 

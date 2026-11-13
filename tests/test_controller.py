@@ -108,6 +108,24 @@ async def test_change_on_untested_firmware_goes_through(tmp_path: Path) -> None:
     await controller.close()
 
 
+async def test_classic_then_hybrid_controller(tmp_path: Path) -> None:
+    controller, states, sim = make(tmp_path, FakeBluez(headset_tree()))
+    await controller.start()
+    try:
+        assert controller.state.can("eq_write_classic")
+        await controller.set_preset(EqPreset.CLASSIC)
+        assert controller.state.eq is not None
+        assert controller.state.eq.preset is EqPreset.CLASSIC
+        assert controller.state.message == "EQ set to Classic (Bone only)"
+        assert "eq:classic" in {s.pending for s in states}
+        await controller.set_preset(EqPreset.STANDARD)
+        assert controller.state.eq.preset is EqPreset.STANDARD
+        assert controller.state.message == "EQ set to Standard (Hybrid)"
+        assert len(sim.writes()) == 2
+    finally:
+        await controller.close()
+
+
 @pytest.mark.usefixtures("all_verified")
 async def test_disconnect_forgets_headset_values_and_reconnect_rereads(tmp_path: Path) -> None:
     bluez = FakeBluez(headset_tree())

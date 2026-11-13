@@ -36,7 +36,9 @@ Open **Shokzer** from your applications, or use the command line:
 
 ```sh
 shokzer status                     # battery, firmware and current EQ
-shokzer eq set vocal               # standard, vocal, bass or treble
+shokzer eq set vocal               # standard, classic, vocal, bass or treble
+shokzer eq set classic             # bone only
+shokzer eq set hybrid              # alias for standard: bone + air conduction
 shokzer eq custom -2 0 1 0 3       # five bands from low to high, each -5 to 5
 shokzer multipoint status          # multipoint and the headset's remembered devices
 shokzer multipoint on|off
@@ -50,6 +52,7 @@ Add `--json` for machine-readable output. Addresses are hidden unless you pass `
 
 - **Close the Shokz phone app first.** The headset accepts one settings connection at a time, so Shokzer can't connect while the app is connected to it.
 - **Custom EQ replaces the one saved on the headset.** Write your bands down from the phone app first if you want to keep them.
+- **Classic / Hybrid:** Shokz describes Classic as disabling the dedicated air speaker; Standard (Hybrid) uses both driver types. These are mutually exclusive EQ presets, not independent switches or an overlay on your custom EQ. Both modes were acknowledged and read back on the firmware below; acoustic isolation and persistence weren't measured. Start at low volume; Classic can feel more vibratory. Switching back to Hybrid selects Standard, not your previous custom profile. JSON keeps the canonical names `classic` and `standard`.
 - **Turning multipoint off** keeps this computer connected and drops your other devices.
 - **Firmware:** tested on `BOS_HU_R_47_20251023` (shown as `HU_R_47_20251023` in the phone app). Other firmware versions get every feature too; Shokzer just asks you to [report how it went](https://github.com/merkourio/shokzer/issues/new?template=firmware-report.yml).
 - **Other Shokz models** aren't supported yet. Shokzer refuses to send them anything.

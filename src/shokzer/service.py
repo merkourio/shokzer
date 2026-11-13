@@ -71,7 +71,13 @@ from .transport.management import SHOKZ_SERVICE_UUID
 
 QUERIES = ("firmware", "battery", "eq")
 SOURCE = "headset:{}"
-WRITABLE_PRESETS = (EqPreset.STANDARD, EqPreset.VOCAL, EqPreset.BASS, EqPreset.TREBLE)
+WRITABLE_PRESETS = (
+    EqPreset.STANDARD,
+    EqPreset.CLASSIC,
+    EqPreset.VOCAL,
+    EqPreset.BASS,
+    EqPreset.TREBLE,
+)
 
 
 class Connector(Protocol):

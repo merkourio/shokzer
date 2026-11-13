@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Classic (bone-only) EQ, and Standard labelled as Hybrid in the app; `eq set hybrid` aliases `eq set standard`.
+- Classic uses Gadgetbridge's source-derived command, verified by acknowledgement/readback on `BOS_HU_R_47_20251023`. Other firmware remains flagged as untested. Changes are never resent.
+
 ## 0.1.0 — 2026-11-13
 
 First release.

@@ -131,12 +131,15 @@ class EqPreset(Enum):
 
 
 # EQUALIZER_SET arguments for the OpenRun Pro 2, captured by Gadgetbridge from the official
-# app (ShokzOpenRunPro2Coordinator.equalizerArgs). Other models use different bytes.
+# app (ShokzOpenRunPro2Coordinator.equalizerArgs). Classic is source-derived from the
+# shared ShokzCoordinator.equalizerArgs, enabled by the Pro 2 coordinator; acknowledged and
+# read back here on BOS_HU_R_47_20251023 (2026-11-13). See docs/protocol-analysis.md.
 PRO2_PRESET_ARGS: dict[EqPreset, bytes] = {
     EqPreset.STANDARD: bytes([0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
     EqPreset.VOCAL: bytes([0x02, 0xFA, 0xFE, 0x04, 0x05, 0x01, 0x00, 0x00]),
     EqPreset.BASS: bytes([0x03, 0x09, 0xF9, 0x00, 0x00, 0x00, 0x00, 0x00]),
     EqPreset.TREBLE: bytes([0x04, 0x00, 0x00, 0x01, 0x04, 0x05, 0x00, 0x00]),
+    EqPreset.CLASSIC: bytes.fromhex("08 00 00 00 00 00 00 00"),
 }
 
 
@@ -157,7 +160,7 @@ def equalizer_request() -> Message:
 
 
 def pro2_preset_request(preset: EqPreset) -> Message:
-    """EQUALIZER_SET for a fixed preset. Only presets with captured Pro 2 bytes are allowed."""
+    """EQUALIZER_SET for a fixed preset with documented source evidence."""
     args = PRO2_PRESET_ARGS.get(preset)
     if args is None:
         raise ValueError(f"no OpenRun Pro 2 evidence for preset {preset.name}")

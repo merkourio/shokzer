@@ -24,6 +24,7 @@ What has been observed on real hardware. A mock or source fact is never a row he
 | Management channel (RFCOMM `0xFEF0` via BlueZ profile API) | Pass | M3 |
 | Firmware, battery and EQ reads | Pass | M3, A1 |
 | EQ presets Standard, Vocal, Bass Boost, Treble Boost | Pass: read back and heard | A2-A5 |
+| Classic / Hybrid (Standard) | Pass: both acknowledged and read back; original Standard restored | Classic test, 2026-11-13 14:22 UTC. Acoustic effect and persistence not verified |
 | EQ persistence over a power cycle | Pass (Treble Boost) | A6 |
 | Custom EQ | Pass: bands read back; band 1 low, band 5 high | B |
 | Multipoint status and device list | Pass (fragmented reply, 3 devices) | C1 |

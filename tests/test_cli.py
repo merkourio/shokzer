@@ -374,6 +374,21 @@ def test_eq_set_json(tmp_path: Any) -> None:
     assert data["firmware"]["value"] == TEST_FIRMWARE
 
 
+@pytest.mark.parametrize(
+    ("name", "code", "canonical"), [("classic", 8, "classic"), ("hybrid", 1, "standard")]
+)
+def test_classic_and_hybrid_cli(tmp_path: Any, name: str, code: int, canonical: str) -> None:
+    sim = SimHeadset(SimState(eq_code=2))
+    exit_code, out, _ = headset_cli(sim, tmp_path, "eq", "set", name, "--json")
+    assert exit_code == ExitCode.OK
+    result = json.loads(out)["result"]
+    assert result["readback"] == canonical
+    assert result["requested"] == canonical
+    assert result["verified"] is False
+    assert len(sim.writes()) == 1
+    assert sim.writes()[0].args == bytes([code]) + bytes(7)
+
+
 def test_eq_set_readable(tmp_path: Any) -> None:
     code, out, _ = headset_cli(SimHeadset(), tmp_path, "eq", "set", "bass")
     assert code == ExitCode.OK

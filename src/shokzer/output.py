@@ -239,8 +239,8 @@ class Formatter:
             lines.append("  Don't repeat the change blindly; read the current state first.")
         if not result.verified and result.acknowledged is not None:
             lines.append(
-                f"  ! This firmware hasn't been tested yet. Please report how it went: "
-                f"{FIRMWARE_REPORT_URL}"
+                "  ! This feature hasn't been tested yet on this firmware. "
+                f"Please report how it went: {FIRMWARE_REPORT_URL}"
             )
         return "\n".join(lines) + "\n"
 

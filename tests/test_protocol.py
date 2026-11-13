@@ -84,7 +84,7 @@ def test_pro2_preset_args_match_source(preset: EqPreset) -> None:
     assert struct.unpack_from("<HH", data, 8) == (48, crc16_maxim(data[12:]))
 
 
-@pytest.mark.parametrize("preset", [EqPreset.CUSTOM, EqPreset.CLASSIC, EqPreset.VOLUME_BOOST])
+@pytest.mark.parametrize("preset", [EqPreset.CUSTOM, EqPreset.SWIMMING, EqPreset.VOLUME_BOOST])
 def test_presets_without_pro2_bytes_are_refused(preset: EqPreset) -> None:
     with pytest.raises(ValueError, match="no OpenRun Pro 2 evidence"):
         pro2_preset_request(preset)
@@ -254,7 +254,7 @@ def captured(name: str) -> tuple[bytes, Message]:
     return frames[0].flags, decode_payload(frames[0].payload)
 
 
-@pytest.mark.parametrize("name", ["firmware_ret", "battery_ret", "equalizer_ret"])
+@pytest.mark.parametrize("name", ["firmware_ret", "battery_ret", "equalizer_ret", "classic_ret"])
 def test_captured_replies_follow_the_framing(name: str) -> None:
     data = bytes.fromhex(CAPTURED[name])
     frame_len, payload_len = struct.unpack_from("<H4xH", data, 2)
@@ -267,6 +267,12 @@ def test_captured_firmware_reply() -> None:
     _, message = captured("firmware_ret")
     assert (message.group, message.code) == FIRMWARE_GET.reply
     assert decode(message) == Firmware("BOS_HU_R_47_20251023")
+
+
+def test_captured_classic_reply() -> None:
+    _, message = captured("classic_ret")
+    assert (message.group, message.code) == EQUALIZER_GET.reply
+    assert decode(message) == Equalizer(8, EqPreset.CLASSIC, None, False)
 
 
 def test_captured_battery_reply() -> None:
