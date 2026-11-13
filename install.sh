@@ -33,14 +33,23 @@ gui_packages() {
     esac
 }
 
-have_gui_stack() {
-    python3 - <<'PY' 2>/dev/null
-import gi
-gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
-import gi.events  # PyGObject 3.50+
-from gi.repository import Adw
-raise SystemExit((Adw.get_major_version(), Adw.get_minor_version()) < (1, 4))
+# Prints "ok", "missing", or "old: <what>" for the GTK stack the app needs.
+gui_stack() {
+    python3 - <<'PY' 2>/dev/null || echo missing
+try:
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw
+except (ImportError, ValueError):
+    print("missing")
+    raise SystemExit
+old = []
+if gi.version_info < (3, 50):
+    old.append("PyGObject %d.%d (needs 3.50+)" % gi.version_info[:2])
+if (Adw.get_major_version(), Adw.get_minor_version()) < (1, 4):
+    old.append("libadwaita %d.%d (needs 1.4+)" % (Adw.get_major_version(), Adw.get_minor_version()))
+print("old: " + ", ".join(old) if old else "ok")
 PY
 }
 
@@ -82,7 +91,7 @@ install() {
     python3 -c 'import ensurepip, venv' 2>/dev/null ||
         fail "Python's venv module is missing. On Debian or Ubuntu: sudo apt install python3-venv"
 
-    if have_gui_stack; then gui=yes; else gui=no; fi
+    gui=$(gui_stack)
 
     WORK=$(mktemp -d)
     trap 'rm -rf "$WORK"' EXIT
@@ -98,7 +107,7 @@ install() {
 
     mkdir -p "$BIN"
     ln -sf "$PREFIX/venv/bin/shokzer" "$BIN/shokzer"
-    if [ "$gui" = yes ]; then
+    if [ "$gui" = ok ]; then
         ln -sf "$PREFIX/venv/bin/shokzer-gui" "$BIN/shokzer-gui"
         mkdir -p "$DATA/applications" "$DATA/icons/hicolor/scalable/apps"
         sed "s|^Exec=.*|Exec=\"$PREFIX/venv/bin/shokzer-gui\"|" \
@@ -113,14 +122,21 @@ install() {
     say ""
     say "$version is installed."
     say "  Command line: shokzer status"
-    if [ "$gui" = yes ]; then
-        say "  App: open Shokzer from your applications, or run shokzer-gui"
-    else
+    case "$gui" in
+    ok) say "  App: open Shokzer from your applications, or run shokzer-gui" ;;
+    missing)
         say ""
         say "The app needs GTK pieces this system doesn't have yet. Install them with:"
         gui_packages
         say "then run this installer again. The command-line tool works already."
-    fi
+        ;;
+    *)
+        say ""
+        say "The app needs newer system libraries than this system has: ${gui#old: }."
+        say "The command-line tool works. Newer releases (Fedora 41+, Debian 13+, Ubuntu 25.04+)"
+        say "have what the app needs."
+        ;;
+    esac
     case ":$PATH:" in
     *":$BIN:"*) ;;
     *) say "" && say "Add $BIN to your PATH to use the shokzer command." ;;

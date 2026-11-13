@@ -141,8 +141,8 @@ def check_ready(report: DiagnoseReport) -> None:
     if report.device.connection is not Connection.CONNECTED:
         raise ShokzError(
             ErrorCategory.UNAVAILABLE,
-            "The headset isn't connected to Fedora.",
-            hint="Connect it in GNOME Settings; shokzer never connects devices itself.",
+            "The headset isn't connected to this computer.",
+            hint="Connect it in your Bluetooth settings; Shokzer never connects devices itself.",
         )
     if not report.identity.name_matches_model:
         raise ShokzError(
@@ -384,7 +384,8 @@ class Headset:
         if address == own.upper():
             raise ShokzError(
                 ErrorCategory.INVALID_INPUT,
-                "That address is this computer. Use GNOME Settings to connect or disconnect it.",
+                "That address is this computer. Connect or disconnect it in your Bluetooth "
+                "settings.",
             )
         if connect:
             status = await self._query(MULTIPOINT_GET, MultipointStatus)

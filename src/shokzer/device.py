@@ -126,7 +126,7 @@ def select(tree: BluezTree, selector: Selector) -> tuple[AdapterInfo, DeviceInfo
             raise ShokzError(
                 ErrorCategory.UNAVAILABLE,
                 "BlueZ doesn't know a device with that address.",
-                hint="Pair the headset in GNOME Settings first.",
+                hint="Pair the headset in your Bluetooth settings first.",
             )
         if len(matches) > 1:
             raise AmbiguousSelectionError(
@@ -138,7 +138,7 @@ def select(tree: BluezTree, selector: Selector) -> tuple[AdapterInfo, DeviceInfo
             raise ShokzError(
                 ErrorCategory.UNAVAILABLE,
                 f"No paired {MODEL_NAME} found.",
-                hint="Pair the headset in GNOME Settings, or pass --device ADDRESS.",
+                hint="Pair the headset in your Bluetooth settings, or pass --device ADDRESS.",
             )
         if len(matches) > 1:
             raise AmbiguousSelectionError(

@@ -350,7 +350,7 @@ async def open_system_bus(*, negotiate_unix_fd: bool = False) -> MessageBus:
         raise ShokzError(
             ErrorCategory.UNAVAILABLE,
             f"The system D-Bus isn't reachable ({error}).",
-            hint="Run on the Fedora host, not inside a sandbox without system-bus access.",
+            hint="Run it on the host system, not in a sandbox or container without the system bus.",
         ) from error
 
 
