@@ -39,7 +39,8 @@ class ProtocolReadiness(StrEnum):
 
 
 class Support(StrEnum):
-    SUPPORTED = "supported"
+    SUPPORTED = "supported"  # tested on this firmware
+    UNTESTED = "untested"  # available, but not yet tested on this firmware
     UNSUPPORTED = "unsupported"
     UNRESOLVED = "unresolved"
 

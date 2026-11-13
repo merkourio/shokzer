@@ -19,13 +19,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from . import APP_NAME, FIRMWARE_REPORT_URL
 from .capabilities import (
-    DESCRIPTIONS,
     capabilities,
     firmware_verified,
     is_verified,
     preset_feature,
-    require,
 )
 from .errors import ErrorCategory, ShokzError
 from .lock import SessionLock
@@ -143,7 +142,7 @@ def check_ready(report: DiagnoseReport) -> None:
         raise ShokzError(
             ErrorCategory.UNAVAILABLE,
             "The headset isn't connected to Fedora.",
-            hint="Connect it in GNOME Settings; shokzctl never connects devices itself.",
+            hint="Connect it in GNOME Settings; shokzer never connects devices itself.",
         )
     if not report.identity.name_matches_model:
         raise ShokzError(
@@ -184,8 +183,7 @@ class Headset:
 
     # --- reads -------------------------------------------------------------------------------
 
-    async def read_battery(self, *, allow_unverified: bool = False) -> int:
-        require("battery_query", self.firmware, allow_unverified=allow_unverified)
+    async def read_battery(self) -> int:
         battery = await self._query(BATTERY_GET, Battery)
         self.report = dataclasses.replace(
             self.report,
@@ -193,26 +191,24 @@ class Headset:
         )
         return battery.percent
 
-    async def read_eq(self, *, allow_unverified: bool = False) -> Equalizer:
-        require("eq_read", self.firmware, allow_unverified=allow_unverified)
+    async def read_eq(self) -> Equalizer:
         return await self._read_eq()
 
-    async def read_multipoint(self, *, allow_unverified: bool = False) -> Multipoint:
-        require("multipoint_read", self.firmware, allow_unverified=allow_unverified)
+    async def read_multipoint(self) -> Multipoint:
         status = await self._query(MULTIPOINT_GET, MultipointStatus)
         devices = await self._query(MULTIPOINT_DEVICES_GET, MultipointDevices)
         return Multipoint(status, devices)
 
     # --- EQ writes ---------------------------------------------------------------------------
 
-    async def set_preset(self, preset: EqPreset, *, allow_unverified: bool = False) -> WriteResult:
+    async def set_preset(self, preset: EqPreset) -> WriteResult:
         feature = preset_feature(preset)
         if feature is None or preset not in WRITABLE_PRESETS:
             raise ShokzError(
                 ErrorCategory.UNSUPPORTED,
                 f"There are no OpenRun Pro 2 bytes for the {preset.name.lower()} preset.",
             )
-        verified = require(feature, self.firmware, allow_unverified=allow_unverified)
+        verified = is_verified(feature, self.firmware)
 
         def is_preset(eq: Equalizer) -> bool:
             return eq.code == preset.value
@@ -225,14 +221,12 @@ class Headset:
             verified=verified,
         )
 
-    async def set_custom(
-        self, bands: Sequence[int], *, allow_unverified: bool = False
-    ) -> WriteResult:
+    async def set_custom(self, bands: Sequence[int]) -> WriteResult:
         try:
             args = custom_eq_request(list(bands)).args
         except ValueError as error:
             raise ShokzError(ErrorCategory.INVALID_INPUT, str(error)) from None
-        verified = require("eq_write_custom", self.firmware, allow_unverified=allow_unverified)
+        verified = is_verified("eq_write_custom", self.firmware)
         wanted = tuple(bands)
 
         def already(eq: Equalizer) -> bool:
@@ -301,8 +295,8 @@ class Headset:
 
     # --- multipoint writes -------------------------------------------------------------------
 
-    async def set_multipoint(self, enabled: bool, *, allow_unverified: bool = False) -> WriteResult:
-        verified = require("multipoint_write", self.firmware, allow_unverified=allow_unverified)
+    async def set_multipoint(self, enabled: bool) -> WriteResult:
+        verified = is_verified("multipoint_write", self.firmware)
         before = await self._query(MULTIPOINT_GET, MultipointStatus)
         result = functools.partial(
             WriteResult,
@@ -316,7 +310,7 @@ class Headset:
                 ErrorCategory.UNSUPPORTED,
                 f"Multipoint reads 0x{before.raw:08x}, which no source names as on or off; "
                 "not changing it.",
-                hint="Record the value from `shokzctl multipoint status` so it can be added.",
+                hint="Record the value from `shokzer multipoint status` so it can be added.",
             )
         if before.enabled is enabled:
             return result(
@@ -367,14 +361,14 @@ class Headset:
             detail=detail,
         )
 
-    async def connect_peer(self, address: str, *, allow_unverified: bool = False) -> WriteResult:
-        return await self._peer(address, connect=True, allow_unverified=allow_unverified)
+    async def connect_peer(self, address: str) -> WriteResult:
+        return await self._peer(address, connect=True)
 
-    async def disconnect_peer(self, address: str, *, allow_unverified: bool = False) -> WriteResult:
-        return await self._peer(address, connect=False, allow_unverified=allow_unverified)
+    async def disconnect_peer(self, address: str) -> WriteResult:
+        return await self._peer(address, connect=False)
 
-    async def _peer(self, address: str, *, connect: bool, allow_unverified: bool) -> WriteResult:
-        verified = require("multipoint_peers", self.firmware, allow_unverified=allow_unverified)
+    async def _peer(self, address: str, *, connect: bool) -> WriteResult:
+        verified = is_verified("multipoint_peers", self.firmware)
         address = address.upper()
         try:
             args = address_arg(address)
@@ -578,7 +572,6 @@ async def read_status(
     open_connector: ConnectorFactory,
     *,
     queries: Sequence[str] = QUERIES,
-    allow_unverified: bool = False,
     reply_timeout: float = DEFAULT_REPLY_TIMEOUT,
     trace: Trace = no_trace,
     lock: SessionLock | None = None,
@@ -587,27 +580,15 @@ async def read_status(
     async with connect(
         report, open_connector, reply_timeout=reply_timeout, trace=trace, lock=lock
     ) as headset:
-        return await status_reads(headset, queries, allow_unverified=allow_unverified)
+        return await status_reads(headset, queries)
 
 
-async def status_reads(
-    headset: Headset, queries: Sequence[str], *, allow_unverified: bool
-) -> DiagnoseReport:
-    """Run the requested reads. A read that isn't verified for this firmware is skipped with
-    a warning unless allow_unverified is set, so status stays useful on new firmware."""
-    reads: list[tuple[str, Callable[..., Awaitable[object]]]] = []
+async def status_reads(headset: Headset, queries: Sequence[str]) -> DiagnoseReport:
+    """Run the requested reads (firmware was already read when the session opened)."""
     if "battery" in queries:
-        reads.append(("battery_query", headset.read_battery))
+        await headset.read_battery()
     if "eq" in queries:
-        reads.append(("eq_read", headset.read_eq))
-    for feature, read in reads:
-        if not allow_unverified and not is_verified(feature, headset.firmware):
-            warning = f"Skipped {DESCRIPTIONS[feature]}: not verified on this firmware."
-            headset.report = dataclasses.replace(
-                headset.report, warnings=(*headset.report.warnings, warning)
-            )
-            continue
-        await read(allow_unverified=allow_unverified)
+        await headset.read_eq()
     return headset.report
 
 
@@ -622,7 +603,10 @@ def _with_firmware(report: DiagnoseReport, version: str) -> DiagnoseReport:
         identity=dataclasses.replace(report.identity, model_verified=firmware_verified(version)),
     )
     if not firmware_verified(version):
-        warning = f"Firmware {version} hasn't been verified with shokzctl."
+        warning = (
+            f"Firmware {version} hasn't been tested with {APP_NAME} yet. Everything should "
+            f"work; please report how it goes: {FIRMWARE_REPORT_URL}"
+        )
         result = dataclasses.replace(result, warnings=(*result.warnings, warning))
     return result
 

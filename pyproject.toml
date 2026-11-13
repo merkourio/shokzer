@@ -3,7 +3,7 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shokzctl"
+name = "shokzer"
 version = "0.1.0.dev0"
 description = "Fedora controller for Shokz OpenRun Pro 2 headset settings"
 readme = "README.md"
@@ -13,11 +13,11 @@ requires-python = ">=3.12"
 dependencies = ["dbus-fast>=2.21"]
 
 [project.scripts]
-shokzctl = "shokzctl.cli:main"
+shokzer = "shokzer.cli:main"
 
 # Needs Fedora's PyGObject, GTK 4 and Libadwaita (system packages, not from PyPI).
 [project.gui-scripts]
-shokzctl-gui = "shokzctl.ui.app:main"
+shokzer-gui = "shokzer.ui:main"
 
 [dependency-groups]
 dev = [
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shokzctl"]
+packages = ["src/shokzer"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -52,7 +52,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src/shokzctl"]
+files = ["src/shokzer"]
 
 # PyGObject ships no type information; GTK calls are unchecked, our own code isn't.
 [[tool.mypy.overrides]]

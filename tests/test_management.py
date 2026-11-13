@@ -7,8 +7,8 @@ from dbus_fast import Message
 from fake_headset import FakeProfileBus, fd_is_closed, is_error, is_method_return
 from fakes import HEADSET, HEADSET_2, device_path
 
-from shokzctl.errors import ErrorCategory, ShokzError
-from shokzctl.transport.management import (
+from shokzer.errors import ErrorCategory, ShokzError
+from shokzer.transport.management import (
     PROFILE_PATH,
     SHOKZ_SERVICE_UUID,
     RfcommConnector,
@@ -27,7 +27,7 @@ async def test_open_registers_client_profile_and_connects_by_uuid() -> None:
     assert register_path == "/org/bluez"
     assert (path, uuid) == (PROFILE_PATH, SHOKZ_SERVICE_UUID)
     assert {k: v.value for k, v in options.items()} == {
-        "Name": "shokzctl",
+        "Name": "shokzer",
         "Role": "client",
         "AutoConnect": False,
         "RequireAuthentication": True,

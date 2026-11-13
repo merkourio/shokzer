@@ -12,7 +12,7 @@
     }
   ],
   "hardware_replies": {
-    "kind": "hardware capture: replies received by shokzctl e559b79 on Fedora 44 from an OpenRun Pro 2, firmware BOS_HU_R_47_20251023, 2026-11-13",
+    "kind": "hardware capture: replies received by shokzer e559b79 on Fedora 44 from an OpenRun Pro 2, firmware BOS_HU_R_47_20251023, 2026-11-13",
     "source": "local/traces/2026-11-13-m3-2-all-reads.jsonl (outside Git); contains no identifiers",
     "firmware_ret": "a55a4f00010100004b00c7c80100000043000000020000000400000002000000030000000400000002800000040000002300000000424f535f48555f525f34375f32303235313032330000000000000000000000000000",
     "battery_ret": "a55a3000010100002c00fd0d010000002400000002000000040000000200000003000000040000000380000004000000040000000005ff00",
@@ -28,7 +28,7 @@
   },
   "fragmented_device_list": {
     "kind": "hardware capture, sanitized: device addresses and names replaced, CRC recomputed; fragment headers, sizes and split point as captured",
-    "source": "local/traces/2026-11-13-C1-multipoint-status.jsonl (outside Git), shokzctl 14e6d78, firmware BOS_HU_R_47_20251023",
+    "source": "local/traces/2026-11-13-C1-multipoint-status.jsonl (outside Git), shokzer 14e6d78, firmware BOS_HU_R_47_20251023",
     "fragments": [
       "a55a780002010000a2007761010000009a000000020000000400000002000000030000000400000004800000040000007a000000000300011111111111011f50686f6e65000000000000000000000000000000000000000000000000000001021111111111011f4c6170746f7000000000000000000000000000000000000000",
       "a55a2e000202000000000000000002031111111111001f5461626c657400000000000000000000000000000000000000000000000000"

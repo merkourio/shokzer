@@ -8,13 +8,13 @@ from fake_headset import TEST_FIRMWARE, FakeConnector
 from fakes import HEADSET, FakeBluez, device_path, headset_tree, settle
 from sim_headset import SimHeadset, SimState
 
-from shokzctl import capabilities as caps
-from shokzctl.capabilities import PROPRIETARY_FEATURES
-from shokzctl.lock import SessionLock
-from shokzctl.protocol.commands import EqPreset
-from shokzctl.state import Connection
-from shokzctl.transport.bluez import DEVICE
-from shokzctl.ui.controller import Controller, ViewState
+from shokzer import capabilities as caps
+from shokzer.capabilities import PROPRIETARY_FEATURES
+from shokzer.lock import SessionLock
+from shokzer.protocol.commands import EqPreset
+from shokzer.state import Connection
+from shokzer.transport.bluez import DEVICE
+from shokzer.ui.controller import Controller, ViewState
 
 HEADSET_PATH = device_path(HEADSET)
 
@@ -54,14 +54,14 @@ async def test_start_reads_the_connected_headset(tmp_path: Path) -> None:
     await controller.close()
 
 
-async def test_unverified_firmware_reads_nothing_but_firmware(tmp_path: Path) -> None:
-    controller, _, sim = make(tmp_path, FakeBluez(headset_tree()))
+async def test_untested_firmware_gets_everything(tmp_path: Path) -> None:
+    controller, _, _ = make(tmp_path, FakeBluez(headset_tree()))
     await controller.start()
     assert controller.state.firmware == TEST_FIRMWARE
-    assert controller.state.eq is None
-    assert controller.state.multipoint is None
-    assert [m.code for m in sim.sent] == [0x0002]
-    assert not controller.state.can("eq_write_vocal")
+    assert controller.state.eq is not None
+    assert controller.state.multipoint is not None
+    assert controller.state.can("eq_write_vocal")
+    assert not controller.state.firmware_tested
     await controller.close()
 
 
@@ -99,15 +99,12 @@ async def test_change_that_doesnt_land_is_reported(tmp_path: Path) -> None:
     await controller.close()
 
 
-async def test_unverified_change_shows_the_refusal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(caps, "VERIFIED", {TEST_FIRMWARE: frozenset({"eq_read"})})
+async def test_change_on_untested_firmware_goes_through(tmp_path: Path) -> None:
     controller, _, sim = make(tmp_path, FakeBluez(headset_tree()))
     await controller.start()
     await controller.set_preset(EqPreset.VOCAL)
-    assert "isn't verified" in (controller.state.message or "")
-    assert sim.writes() == []
+    assert controller.state.message == "EQ set to Vocal"
+    assert len(sim.writes()) == 1
     await controller.close()
 
 

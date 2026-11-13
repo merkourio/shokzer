@@ -31,4 +31,4 @@ class _NoRealBus:
 @pytest.fixture(autouse=True)
 def _block_real_dbus(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     if "hardware" not in request.keywords:
-        monkeypatch.setattr("shokzctl.transport.bluez.MessageBus", _NoRealBus)
+        monkeypatch.setattr("shokzer.transport.bluez.MessageBus", _NoRealBus)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from . import FIRMWARE_REPORT_URL
 from .capabilities import MODEL_NAME
 from .device import AmbiguousSelectionError
 from .errors import ShokzError
@@ -21,8 +22,8 @@ _OUTCOME_TEXT = {
     WriteOutcome.UNCERTAIN: "outcome uncertain",
 }
 
-DIAGNOSE_SCHEMA = "shokzctl.diagnose/1"
-STATUS_SCHEMA = "shokzctl.status/1"
+DIAGNOSE_SCHEMA = "shokzer.diagnose/1"
+STATUS_SCHEMA = "shokzer.status/1"
 
 _SOURCE_LABELS = {"bluez:org.bluez.Battery1.Percentage": "BlueZ Battery1"}
 
@@ -130,9 +131,11 @@ class Formatter:
         ]
         battery = ", ".join(batteries) or "unknown"
         if report.identity.model_verified:
-            model = f"{MODEL_NAME}, verified firmware"
+            model = f"{MODEL_NAME}, tested firmware"
+        elif report.identity.name_matches_model and report.firmware.known:
+            model = f"{MODEL_NAME}, firmware not tested yet"
         elif report.identity.name_matches_model:
-            model = f"name matches {MODEL_NAME}; not verified"
+            model = f"{MODEL_NAME} (by name)"
         else:
             model = f"name doesn't match {MODEL_NAME}"
         power = {True: "powered on", False: "powered off", None: "power unknown"}[a.powered]
@@ -235,7 +238,10 @@ class Formatter:
         if result.outcome is WriteOutcome.UNCERTAIN:
             lines.append("  Don't repeat the change blindly; read the current state first.")
         if not result.verified and result.acknowledged is not None:
-            lines.append("  ! Not verified on this firmware (--allow-unverified).")
+            lines.append(
+                f"  ! This firmware hasn't been tested yet. Please report how it went: "
+                f"{FIRMWARE_REPORT_URL}"
+            )
         return "\n".join(lines) + "\n"
 
     def _headset_envelope(self, report: DiagnoseReport, **payload: Any) -> dict[str, Any]:
@@ -251,7 +257,7 @@ class Formatter:
         return "".join(f"  ! {w}\n" for w in report.warnings)
 
     def error_text(self, error: ShokzError) -> str:
-        lines = [f"shokzctl: {error.message}"]
+        lines = [f"shokzer: {error.message}"]
         if isinstance(error, AmbiguousSelectionError):
             lines += [
                 f"  {d.name or d.alias or 'Unnamed device'}  {self.address(d.address)}"

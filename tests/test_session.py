@@ -8,16 +8,16 @@ from typing import Any
 import pytest
 from fake_headset import TEST_FIRMWARE, FakeHeadset, frame
 
-from shokzctl.errors import ErrorCategory, ShokzError
-from shokzctl.protocol.commands import (
+from shokzer.errors import ErrorCategory, ShokzError
+from shokzer.protocol.commands import (
     BATTERY_GET,
     EQUALIZER_GET,
     FIRMWARE_GET,
     MULTIPOINT_DEVICES_GET,
 )
-from shokzctl.protocol.packets import Message
-from shokzctl.protocol.responses import Battery, Firmware, MultipointDevices
-from shokzctl.session import ManagementSession
+from shokzer.protocol.packets import Message
+from shokzer.protocol.responses import Battery, Firmware, MultipointDevices
+from shokzer.session import ManagementSession
 
 VECTORS = json.loads((Path(__file__).parent / "fixtures" / "protocol_vectors.json").read_text())
 UPSTREAM_FIRMWARE_GET = VECTORS["vectors"][0]["hex"]

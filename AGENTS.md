@@ -1,6 +1,6 @@
-# Working on shokzctl
+# Working on shokzer
 
-shokzctl manages settings on a Shokz OpenRun Pro 2 from Fedora. Fedora's audio stack keeps playback and calls; this tool never touches them.
+shokzer manages settings on a Shokz OpenRun Pro 2 from Fedora. Fedora's audio stack keeps playback and calls; this tool never touches them.
 
 ## Safety rules
 
@@ -35,17 +35,17 @@ On the host, through `ht` (from Flatpak sandboxes) or directly:
 
 ## Layout
 
-- `src/shokzctl/transport/bluez.py`: BlueZ object tree, signal handling, and the dbus-fast connection.
-- `src/shokzctl/device.py`: candidate selection and the diagnose report.
-- `src/shokzctl/state.py`: state contract shared by the CLI and the GUI.
-- `src/shokzctl/output.py`: readable and JSON formatters, redaction.
-- `src/shokzctl/errors.py`: error categories and exit codes.
-- `src/shokzctl/protocol/`: pure frame, command and reply codecs. No I/O.
-- `src/shokzctl/transport/management.py`: BlueZ profile API connector for the RFCOMM management channel.
-- `src/shokzctl/session.py`: one request in flight, replies matched on group and code, no resends.
-- `src/shokzctl/service.py`: every headset operation, shared by CLI and GUI. Writes read first, send once, then read back.
-- `src/shokzctl/capabilities.py`: what's verified per firmware. Add a feature only after its hardware test passes.
-- `src/shokzctl/ui/`: `controller.py` (no GTK, tested offline), `window.py`, `app.py`.
-- `src/shokzctl/lock.py`, `trace.py`: one session per user; JSON-lines byte traces.
+- `src/shokzer/transport/bluez.py`: BlueZ object tree, signal handling, and the dbus-fast connection.
+- `src/shokzer/device.py`: candidate selection and the diagnose report.
+- `src/shokzer/state.py`: state contract shared by the CLI and the GUI.
+- `src/shokzer/output.py`: readable and JSON formatters, redaction.
+- `src/shokzer/errors.py`: error categories and exit codes.
+- `src/shokzer/protocol/`: pure frame, command and reply codecs. No I/O.
+- `src/shokzer/transport/management.py`: BlueZ profile API connector for the RFCOMM management channel.
+- `src/shokzer/session.py`: one request in flight, replies matched on group and code, no resends.
+- `src/shokzer/service.py`: every headset operation, shared by CLI and GUI. Writes read first, send once, then read back.
+- `src/shokzer/capabilities.py`: what's verified per firmware. Add a feature only after its hardware test passes.
+- `src/shokzer/ui/`: `controller.py` (no GTK, tested offline), `window.py`, `app.py`.
+- `src/shokzer/lock.py`, `trace.py`: one session per user; JSON-lines byte traces.
 - `docs/`: protocol analysis, hardware test plan, hardware matrix, test results, licensing.
 - `data/`, `packaging/`: desktop file, AppStream metadata, icon, RPM spec. `APP_ID` in `__init__.py` is a placeholder.

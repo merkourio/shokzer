@@ -7,8 +7,8 @@ import copy
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from shokzctl.errors import ShokzError
-from shokzctl.transport.bluez import (
+from shokzer.errors import ShokzError
+from shokzer.transport.bluez import (
     ADAPTER,
     BATTERY,
     BEARER_BREDR,

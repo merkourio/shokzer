@@ -1,7 +1,7 @@
-%global app_id org.example.Shokzctl
+%global app_id pm.markos.Shokzer
 %global pypi_version 0.1.0.dev0
 
-Name:           shokzctl
+Name:           shokzer
 Version:        0.1.0~dev0
 Release:        1%{?dist}
 Summary:        Manage Shokz OpenRun Pro 2 headset settings
@@ -42,7 +42,7 @@ firmware. Not affiliated with Shokz.
 
 %install
 %pyproject_install
-%pyproject_save_files -l shokzctl
+%pyproject_save_files -l shokzer
 install -Dpm 0644 data/%{app_id}.desktop %{buildroot}%{_datadir}/applications/%{app_id}.desktop
 install -Dpm 0644 data/%{app_id}.metainfo.xml %{buildroot}%{_metainfodir}/%{app_id}.metainfo.xml
 install -Dpm 0644 data/icons/hicolor/scalable/apps/%{app_id}.svg \
@@ -50,7 +50,7 @@ install -Dpm 0644 data/icons/hicolor/scalable/apps/%{app_id}.svg \
 
 %check
 # Offline only: no hardware, no display, no network.
-%pyproject_check_import -e 'shokzctl.ui.app' -e 'shokzctl.ui.window'
+%pyproject_check_import -e 'shokzer.ui.app' -e 'shokzer.ui.window'
 %pytest -m "not hardware and not gui"
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{app_id}.desktop
 # No homepage exists for this local-only app; every other check stays strict.
@@ -58,8 +58,8 @@ appstreamcli validate --no-net --override=url-homepage-missing=info %{buildroot}
 
 %files -f %{pyproject_files}
 %doc README.md
-%{_bindir}/shokzctl
-%{_bindir}/shokzctl-gui
+%{_bindir}/shokzer
+%{_bindir}/shokzer-gui
 %{_datadir}/applications/%{app_id}.desktop
 %{_metainfodir}/%{app_id}.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/%{app_id}.svg

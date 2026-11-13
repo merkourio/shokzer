@@ -79,7 +79,7 @@ def run(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="shokzctl", description="Manage a Shokz OpenRun Pro 2 from Fedora."
+        prog="shokzer", description="Settings for the Shokz OpenRun Pro 2."
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
@@ -102,8 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Read firmware, battery and EQ from the headset. Read-only.",
         description=(
             "Open the headset's management channel and read its state. Read-only: no setting "
-            "is changed. The headset must already be connected to Fedora. Reads that aren't "
-            "verified on the headset's firmware are skipped unless --allow-unverified is given."
+            "is changed. The headset must already be connected to this computer."
         ),
     )
     _add_common(status)
@@ -193,11 +192,6 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 def _add_session(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--allow-unverified",
-        action="store_true",
-        help="Allow operations not yet verified on this firmware. For controlled tests.",
-    )
-    parser.add_argument(
         "--trace",
         type=Path,
         metavar="FILE",
@@ -224,7 +218,7 @@ async def _command(
     err: TextIO,
 ) -> int:
     name = _name(args)
-    fmt = Formatter(show_identifiers=args.show_identifiers, schema=f"shokzctl.{name}/1")
+    fmt = Formatter(show_identifiers=args.show_identifiers, schema=f"shokzer.{name}/1")
     observer: BluezObserver | None = None
     trace: TraceFile | None = None
     try:
@@ -252,7 +246,7 @@ async def _command(
         observer = None
         if args.trace is not None:
             trace = TraceFile(args.trace)
-            trace.start(shokzctl=__version__, command=name, reply_timeout=args.reply_timeout)
+            trace.start(shokzer=__version__, command=name, reply_timeout=args.reply_timeout)
         payload, text, code = await _headset_command(args, report, open_connector, lock, trace, fmt)
         if trace is not None:
             trace("result", ok=code == ExitCode.OK, exit=int(code), **payload.get("trace", {}))
@@ -283,15 +277,12 @@ async def _headset_command(
     fmt: Formatter,
 ) -> tuple[dict[str, Any], str, ExitCode]:
     tracer: Trace = trace if trace is not None else no_trace
-    allow = args.allow_unverified
     async with connect(
         report, open_connector, reply_timeout=args.reply_timeout, trace=tracer, lock=lock
     ) as headset:
         action = getattr(args, "action", None)
         if args.command == "status":
-            result = await status_reads(
-                headset, tuple(args.query or QUERIES), allow_unverified=allow
-            )
+            result = await status_reads(headset, tuple(args.query or QUERIES))
             payload = fmt.report_dict(result)
             payload["trace"] = {
                 "firmware": result.firmware.value,
@@ -300,37 +291,37 @@ async def _headset_command(
             }
             return payload, fmt.report_text(result), ExitCode.OK
         if (args.command, action) == ("eq", "get"):
-            eq = await headset.read_eq(allow_unverified=allow)
+            eq = await headset.read_eq()
             return (
                 fmt.eq_dict(headset.report, eq),
                 fmt.eq_text(headset.report),
                 ExitCode.OK,
             )
         if (args.command, action) == ("multipoint", "status"):
-            state = await headset.read_multipoint(allow_unverified=allow)
+            state = await headset.read_multipoint()
             return (
                 fmt.multipoint_dict(headset.report, state),
                 fmt.multipoint_text(headset.report, state),
                 ExitCode.OK,
             )
-        write = await _write(args, headset, allow)
+        write = await _write(args, headset)
         payload = fmt.write_dict(headset.report, write)
         payload["trace"] = {"outcome": write.outcome.value, "readback": write.readback}
         return payload, fmt.write_text(write), _WRITE_EXIT_CODES[write.outcome]
 
 
-async def _write(args: argparse.Namespace, headset: Headset, allow: bool) -> WriteResult:
+async def _write(args: argparse.Namespace, headset: Headset) -> WriteResult:
     match (args.command, args.action):
         case ("eq", "set"):
-            return await headset.set_preset(EqPreset[args.preset.upper()], allow_unverified=allow)
+            return await headset.set_preset(EqPreset[args.preset.upper()])
         case ("eq", "custom"):
-            return await headset.set_custom(args.bands, allow_unverified=allow)
+            return await headset.set_custom(args.bands)
         case ("multipoint", "on" | "off"):
-            return await headset.set_multipoint(args.action == "on", allow_unverified=allow)
+            return await headset.set_multipoint(args.action == "on")
         case ("multipoint", "connect"):
-            return await headset.connect_peer(args.address, allow_unverified=allow)
+            return await headset.connect_peer(args.address)
         case ("multipoint", "disconnect"):
-            return await headset.disconnect_peer(args.address, allow_unverified=allow)
+            return await headset.disconnect_peer(args.address)
     raise AssertionError(f"unhandled command {args.command} {args.action}")
 
 

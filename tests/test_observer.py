@@ -12,8 +12,8 @@ from fakes import (
     tree,
 )
 
-from shokzctl.errors import ErrorCategory, ShokzError
-from shokzctl.transport.bluez import BATTERY, DEVICE, BluezObserver
+from shokzer.errors import ErrorCategory, ShokzError
+from shokzer.transport.bluez import BATTERY, DEVICE, BluezObserver
 
 HEADSET_PATH = device_path(HEADSET)
 

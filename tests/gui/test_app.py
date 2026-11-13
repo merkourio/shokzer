@@ -17,9 +17,9 @@ from fake_headset import TEST_FIRMWARE, FakeConnector
 from fakes import FakeBluez, headset_tree
 from sim_headset import SimHeadset
 
-from shokzctl import capabilities as caps
-from shokzctl.capabilities import PROPRIETARY_FEATURES
-from shokzctl.lock import SessionLock
+from shokzer import capabilities as caps
+from shokzer.capabilities import PROPRIETARY_FEATURES
+from shokzer.lock import SessionLock
 
 pytestmark = [
     pytest.mark.gui,
@@ -34,8 +34,8 @@ def test_app_reads_headset_and_shuts_down_cleanly(
     from gi.events import GLibEventLoopPolicy
     from gi.repository import GLib
 
-    from shokzctl.ui.app import Application
-    from shokzctl.ui.controller import Controller
+    from shokzer.ui.app import Application
+    from shokzer.ui.controller import Controller
 
     sim = SimHeadset()
 
@@ -47,7 +47,7 @@ def test_app_reads_headset_and_shuts_down_cleanly(
         )
 
     seen: dict[str, Any] = {}
-    app = Application(controller, application_id="org.example.ShokzctlTest")
+    app = Application(controller, application_id="pm.markos.ShokzerTest")
 
     def check() -> bool:
         state = app.controller.state if app.controller else None
@@ -95,9 +95,9 @@ def test_closing_during_a_change_still_exits(
     from gi.events import GLibEventLoopPolicy
     from gi.repository import GLib
 
-    from shokzctl.protocol.commands import EqPreset
-    from shokzctl.ui.app import Application
-    from shokzctl.ui.controller import Controller
+    from shokzer.protocol.commands import EqPreset
+    from shokzer.ui.app import Application
+    from shokzer.ui.controller import Controller
 
     sim = SimHeadset()
     connector = SlowConnector(sim)
@@ -110,7 +110,7 @@ def test_closing_during_a_change_still_exits(
         )
 
     seen: dict[str, Any] = {}
-    app = Application(controller, application_id="org.example.ShokzctlTest2")
+    app = Application(controller, application_id="pm.markos.ShokzerTest2")
 
     def start_change() -> bool:
         state = app.controller.state if app.controller else None

@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 
 from fake_headset import TEST_FIRMWARE, FakeHeadset, fragmented, frame
 
-from shokzctl.protocol.packets import Message
-from shokzctl.protocol.responses import MULTIPOINT_ON_VALUE
+from shokzer.protocol.packets import Message
+from shokzer.protocol.responses import MULTIPOINT_ON_VALUE
 
 THIS_COMPUTER = "AA:BB:CC:FF:FF:01"  # matches fakes.adapter()
 PHONE = "11:22:33:44:55:66"

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>org.example.Shokzctl</id>
+  <id>pm.markos.Shokzer</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-or-later</project_license>
-  <name>Shokz Headset</name>
+  <name>Shokzer</name>
   <summary>Change settings on a Shokz OpenRun Pro 2</summary>
   <description>
     <p>
@@ -13,7 +13,7 @@
     </p>
     <p>Not affiliated with or endorsed by Shokz.</p>
   </description>
-  <launchable type="desktop-id">org.example.Shokzctl.desktop</launchable>
+  <launchable type="desktop-id">pm.markos.Shokzer.desktop</launchable>
   <developer id="org.example">
     <name>Markos</name>
   </developer>
@@ -26,8 +26,8 @@
     <control>pointing</control>
   </supports>
   <provides>
-    <binary>shokzctl</binary>
-    <binary>shokzctl-gui</binary>
+    <binary>shokzer</binary>
+    <binary>shokzer-gui</binary>
   </provides>
   <releases>
     <release version="0.1.0~dev0" date="2026-11-13">

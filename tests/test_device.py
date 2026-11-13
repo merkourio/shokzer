@@ -15,7 +15,7 @@ from fakes import (
     tree,
 )
 
-from shokzctl.device import (
+from shokzer.device import (
     AmbiguousSelectionError,
     Selector,
     build_report,
@@ -23,9 +23,9 @@ from shokzctl.device import (
     parse_device,
     select,
 )
-from shokzctl.errors import ErrorCategory, ShokzError
-from shokzctl.state import Connection, Support
-from shokzctl.transport.bluez import BluezTree, Objects, Snapshot
+from shokzer.errors import ErrorCategory, ShokzError
+from shokzer.state import Connection, Support
+from shokzer.transport.bluez import BluezTree, Objects, Snapshot
 
 
 def loaded(objects: Objects) -> BluezTree:

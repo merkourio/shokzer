@@ -26,14 +26,14 @@ from ..errors import ErrorCategory, ShokzError
 from .bluez import BLUEZ, DBUS, DBUS_PATH, DEVICE, dbus_error, open_system_bus
 
 SHOKZ_SERVICE_UUID = "0000fef0-0000-1000-8000-00805f9b34fb"
-PROFILE_PATH = "/org/shokzctl/management"
+PROFILE_PATH = "/pm/markos/Shokzer/management"
 PROFILE = "org.bluez.Profile1"
 PROFILE_MANAGER = "org.bluez.ProfileManager1"
 REJECTED = "org.bluez.Error.Rejected"
 RECEIVE_SIZE = 2048
 
 PROFILE_OPTIONS = {
-    "Name": Variant("s", "shokzctl"),
+    "Name": Variant("s", "shokzer"),
     "Role": Variant("s", "client"),
     "AutoConnect": Variant("b", False),
     "RequireAuthentication": Variant("b", True),

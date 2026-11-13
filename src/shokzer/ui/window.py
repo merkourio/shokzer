@@ -17,6 +17,7 @@ gi.require_version("Adw", "1")
 
 from gi.repository import Adw, Gtk  # noqa: E402
 
+from .. import FIRMWARE_REPORT_URL  # noqa: E402
 from ..output import redact_address  # noqa: E402
 from ..protocol.commands import CUSTOM_BANDS, CUSTOM_GAIN_MAX, CUSTOM_GAIN_MIN, EqPreset  # noqa: E402
 from ..service import multipoint_label  # noqa: E402
@@ -63,9 +64,12 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._refresh.update_property([Gtk.AccessibleProperty.LABEL], ["Read from the headset"])
         self._refresh.connect("clicked", lambda *_: self._run(self._controller.refresh()))
         header.pack_start(self._refresh)
-        self._spinner = Adw.Spinner()
+        self._spinner = _spinner()
         header.pack_end(self._spinner)
         view.add_top_bar(header)
+        self._banner = Adw.Banner(button_label="Report")
+        self._banner.connect("button-clicked", self._on_report_clicked)
+        view.add_top_bar(self._banner)
 
         self._stack = Gtk.Stack()
         self._missing = Adw.StatusPage(icon_name="audio-headset-symbolic")
@@ -87,7 +91,7 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._eq_group = Adw.PreferencesGroup(title="Equalizer")
         self._preset_checks: dict[EqPreset, Gtk.CheckButton] = {}
         self._preset_rows: dict[EqPreset, Adw.ActionRow] = {}
-        self._preset_spinners: dict[EqPreset, Adw.Spinner] = {}
+        self._preset_spinners: dict[EqPreset, Gtk.Widget] = {}
         first: Gtk.CheckButton | None = None
         for preset in _PRESETS:
             label = PRESET_LABELS[preset]
@@ -107,7 +111,8 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
                 check.set_focusable(False)
             else:
                 row.set_activatable_widget(check)
-            spinner = Adw.Spinner(visible=False)
+            spinner = _spinner()
+            spinner.set_visible(False)
             row.add_suffix(spinner)
             self._eq_group.add(row)
             self._preset_checks[preset] = check
@@ -158,10 +163,15 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self._title.set_subtitle(state.busy or "")
         self._refresh.set_sensitive(state.connected and not busy)
 
+        untested = state.firmware is not None and not state.firmware_tested
+        self._banner.set_revealed(untested)
+        if untested:
+            self._banner.set_title("This firmware hasn't been tested yet. Tell us how it goes.")
+
         if state.report is None:
             self._missing.set_title("No headset")
             self._missing.set_description(
-                state.bluez_error or "Pair the OpenRun Pro 2 in GNOME Settings."
+                state.bluez_error or "Pair the OpenRun Pro 2 in your Bluetooth settings."
             )
             self._stack.set_visible_child_name("missing")
         else:
@@ -199,11 +209,6 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         writable = [p for p in _PRESETS if state.can(_FEATURE[p])]
         if state.eq is None:
             self._eq_group.set_description("Unknown until read from the headset.")
-        elif not writable:
-            self._eq_group.set_description(
-                "Changing the EQ isn't verified on this firmware yet. "
-                "Test it from the command line with shokzctl eq set --allow-unverified."
-            )
         else:
             self._eq_group.set_description(None)
         for preset in _PRESETS:
@@ -219,8 +224,6 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
                 subtitle = "Changing…"
             elif preset is EqPreset.CUSTOM and state.eq is not None and state.eq.bands:
                 subtitle = " ".join(f"{b:+d}" if b else "0" for b in state.eq.bands)
-            elif state.firmware is not None and not can_write:
-                subtitle = "Not verified on this firmware"
             row.set_subtitle(subtitle or "")
             self._preset_spinners[preset].set_visible(pending)
         if state.eq is not None and state.eq.code not in {p.value for p in _PRESETS}:
@@ -298,6 +301,9 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             return
         self._run(self._controller.set_multipoint(row.get_active()))
 
+    def _on_report_clicked(self, _banner: Any) -> None:
+        Gtk.UriLauncher.new(FIRMWARE_REPORT_URL).launch(self, None, None, None)
+
     def _on_close_request(self, _window: Any) -> bool:
         if self._closing:
             return False
@@ -319,6 +325,15 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
     def _run(self, action: Any) -> None:
         self._controller.spawn(action)
+
+
+def _spinner() -> Gtk.Widget:
+    """Adw.Spinner needs libadwaita 1.6; older versions get a running Gtk.Spinner."""
+    if hasattr(Adw, "Spinner"):
+        return Adw.Spinner()
+    spinner = Gtk.Spinner()
+    spinner.start()
+    return spinner
 
 
 def _property_row(title: str) -> Adw.ActionRow:

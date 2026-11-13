@@ -14,9 +14,9 @@ from typing import Any
 
 from dbus_fast import Message, MessageType
 
-from shokzctl.protocol.packets import Message as Frame
-from shokzctl.protocol.packets import StreamDecoder, decode_payload, encode
-from shokzctl.transport.management import PROFILE, PROFILE_PATH
+from shokzer.protocol.packets import Message as Frame
+from shokzer.protocol.packets import StreamDecoder, decode_payload, encode
+from shokzer.transport.management import PROFILE, PROFILE_PATH
 
 BLUEZ_OWNER = ":1.4"
 TEST_FIRMWARE = "TEST_FW_1"

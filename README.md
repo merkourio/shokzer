@@ -1,29 +1,29 @@
-# shokzctl
+# shokzer
 
-Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth, from the command line or a GTK app. Fedora's audio stack keeps handling playback and calls; shokzctl is for headset settings.
+Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth, from the command line or a GTK app. Fedora's audio stack keeps handling playback and calls; shokzer is for headset settings.
 
 **Status:** everything here is verified on firmware `BOS_HU_R_47_20251023` (2026-11-13, `docs/test-results.md`): reads, all four EQ presets, custom EQ, multipoint and the app. Other firmware versions need `--allow-unverified`, and the app greys those features out. The headset takes one management connection at a time, so close the Shokz phone app first.
 
 ## Use
 
 ```sh
-shokzctl diagnose                  # what BlueZ knows about the headset; sends nothing to it
-shokzctl diagnose --watch          # print again whenever something changes; Ctrl-C to stop
-shokzctl status                    # read firmware, battery and EQ from the headset
-shokzctl eq get
-shokzctl eq set vocal              # standard, vocal, bass or treble
-shokzctl eq custom -2 0 1 0 3      # five band gains, each -5 to 5
-shokzctl multipoint status         # on/off and the headset's remembered devices
-shokzctl multipoint on|off
-shokzctl multipoint connect|disconnect ADDRESS
-shokzctl-gui                       # the GTK app
+shokzer diagnose                  # what BlueZ knows about the headset; sends nothing to it
+shokzer diagnose --watch          # print again whenever something changes; Ctrl-C to stop
+shokzer status                    # read firmware, battery and EQ from the headset
+shokzer eq get
+shokzer eq set vocal              # standard, vocal, bass or treble
+shokzer eq custom -2 0 1 0 3      # five band gains, each -5 to 5
+shokzer multipoint status         # on/off and the headset's remembered devices
+shokzer multipoint on|off
+shokzer multipoint connect|disconnect ADDRESS
+shokzer-gui                       # the GTK app
 ```
 
 Every command takes `--json`. Headset commands also take `--trace FILE` (every byte, as JSON lines; the repo ignores `local/`) and `--allow-unverified`.
 
 `diagnose` is passive: it reads BlueZ's state over the system D-Bus and sends nothing to the headset. Everything else opens the headset's management channel (RFCOMM, service `0xFEF0`, through BlueZ's profile API). The headset must already be connected to Fedora, and the Shokz phone app should be closed so it doesn't hold the channel. One session runs at a time per user.
 
-A change is reported as **confirmed** only when the headset reads the new value back. If it reads back the old value the change is **not applied**; if it can't be read back the outcome is **uncertain**, and you should read the current state before trying again. shokzctl never resends a change, never connects or pairs devices itself, and never disconnects this computer.
+A change is reported as **confirmed** only when the headset reads the new value back. If it reads back the old value the change is **not applied**; if it can't be read back the outcome is **uncertain**, and you should read the current state before trying again. shokzer never resends a change, never connects or pairs devices itself, and never disconnects this computer.
 
 Output redacts addresses so it can be shared; `--show-identifiers` prints them in full. With more than one paired OpenRun Pro 2, pick one with `--device ADDRESS` (and `--adapter hciN` if needed).
 

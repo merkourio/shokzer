@@ -3,8 +3,8 @@ from __future__ import annotations
 from dbus_fast import Variant
 from fakes import HCI0, HEADSET, OWNER, adapter, device, device_path, headset_tree, tree
 
-from shokzctl.errors import ErrorCategory
-from shokzctl.transport.bluez import (
+from shokzer.errors import ErrorCategory
+from shokzer.transport.bluez import (
     ADAPTER,
     BATTERY,
     BEARER_BREDR,

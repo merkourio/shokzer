@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from shokzctl.protocol.commands import (
+from shokzer.protocol.commands import (
     BATTERY_GET,
     EQUALIZER_GET,
     EQUALIZER_SET,
@@ -25,7 +25,7 @@ from shokzctl.protocol.commands import (
     firmware_request,
     pro2_preset_request,
 )
-from shokzctl.protocol.packets import (
+from shokzer.protocol.packets import (
     MalformedFrameError,
     Message,
     StreamDecoder,
@@ -33,7 +33,7 @@ from shokzctl.protocol.packets import (
     decode_payload,
     encode,
 )
-from shokzctl.protocol.responses import (
+from shokzer.protocol.responses import (
     Acknowledgement,
     Battery,
     Equalizer,

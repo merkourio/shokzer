@@ -11,9 +11,9 @@ import os
 
 import pytest
 
-from shokzctl.cli import run
-from shokzctl.errors import ExitCode
-from shokzctl.transport.bluez import connect_system_bus
+from shokzer.cli import run
+from shokzer.errors import ExitCode
+from shokzer.transport.bluez import connect_system_bus
 
 pytestmark = pytest.mark.hardware
 

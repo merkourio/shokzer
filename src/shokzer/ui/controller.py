@@ -16,7 +16,7 @@ import dataclasses
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from ..capabilities import capabilities, is_verified
+from ..capabilities import capabilities
 from ..device import Selector, build_report
 from ..errors import ShokzError
 from ..lock import SessionLock
@@ -74,7 +74,15 @@ class ViewState:
         return self.report is not None and self.report.device.connection is Connection.CONNECTED
 
     def can(self, feature: str) -> bool:
-        return self.capabilities.get(feature) is Support.SUPPORTED
+        return self.capabilities.get(feature) in (Support.SUPPORTED, Support.UNTESTED)
+
+    @property
+    def firmware_tested(self) -> bool:
+        return (
+            self.firmware is not None
+            and self.can("eq_read")
+            and all(v is Support.SUPPORTED for v in self.capabilities.values())
+        )
 
 
 class Controller:
@@ -141,10 +149,8 @@ class Controller:
 
     async def refresh(self) -> None:
         async def read(headset: Headset) -> None:
-            await status_reads(headset, QUERIES, allow_unverified=False)
-            multipoint = None
-            if is_verified("multipoint_read", headset.firmware):
-                multipoint = await headset.read_multipoint()
+            await status_reads(headset, QUERIES)
+            multipoint = await headset.read_multipoint()
             self._absorb(headset, multipoint=multipoint)
 
         await self._session("Reading", read)

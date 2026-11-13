@@ -1,8 +1,8 @@
-shokzctl
+shokzer
 Copyright (C) 2026 Markos
 Licensed under the GNU Affero General Public License, version 3 or later. See LICENSE.
 
-The Shokz management protocol implementation (src/shokzctl/protocol/) is derived from
+The Shokz management protocol implementation (src/shokzer/protocol/) is derived from
 Gadgetbridge, https://codeberg.org/Freeyourgadget/Gadgetbridge, commit
 37f76243b7e78632ea3ea338f59f8318ecf9d417, licensed under the GNU Affero General Public
 License, version 3. Copyright of that work belongs to the Gadgetbridge contributors.

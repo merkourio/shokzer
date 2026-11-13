@@ -1,16 +1,14 @@
-"""Model identity and feature gates.
+"""Model identity and which features have been tested on which firmware.
 
-A proprietary feature is supported only for a firmware version listed in VERIFIED, and an
-entry goes there only after a controlled test recorded in docs/hardware-matrix.md. Every
-other combination stays unresolved. Unresolved features can still be used from the CLI with
---allow-unverified, which is how they get tested; the GUI never offers them.
+Every feature is available on any OpenRun Pro 2, whatever its firmware. VERIFIED only records
+the firmware versions a feature was tested on (docs/test-results.md); on other firmware the
+feature is reported as untested and the user is asked to report how it went.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 
-from .errors import ErrorCategory, ShokzError
 from .protocol.commands import EqPreset
 from .state import Support
 
@@ -75,31 +73,18 @@ def firmware_verified(firmware: str | None) -> bool:
 
 
 def capabilities(firmware: str | None = None) -> dict[str, Support]:
-    verified = VERIFIED.get(firmware or "", frozenset())
+    """Unresolved until the firmware is known; then supported (tested) or untested."""
+    if firmware is None:
+        return dict.fromkeys(PROPRIETARY_FEATURES, Support.UNRESOLVED)
+    verified = VERIFIED.get(firmware, frozenset())
     return {
-        feature: Support.SUPPORTED if feature in verified else Support.UNRESOLVED
+        feature: Support.SUPPORTED if feature in verified else Support.UNTESTED
         for feature in PROPRIETARY_FEATURES
     }
 
 
 def is_verified(feature: str, firmware: str | None) -> bool:
     return feature in VERIFIED.get(firmware or "", frozenset())
-
-
-def require(feature: str, firmware: str | None, *, allow_unverified: bool) -> bool:
-    """Raise unless the feature is verified for this firmware or the caller opted in.
-    Returns whether it was verified."""
-    if feature not in DESCRIPTIONS:
-        raise ValueError(f"unknown feature {feature!r}")
-    if is_verified(feature, firmware):
-        return True
-    if allow_unverified:
-        return False
-    raise ShokzError(
-        ErrorCategory.UNSUPPORTED,
-        f"{DESCRIPTIONS[feature].capitalize()} isn't verified on firmware {firmware}.",
-        hint="Pass --allow-unverified to try it anyway, at low volume, with the Shokz app closed.",
-    )
 
 
 _PRESET_FEATURES = {

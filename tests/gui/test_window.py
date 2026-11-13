@@ -17,19 +17,19 @@ import pytest
 from fakes import OWNER, headset_tree
 from sim_headset import PHONE, THIS_COMPUTER
 
-from shokzctl.capabilities import PROPRIETARY_FEATURES
-from shokzctl.device import Selector, build_report
-from shokzctl.protocol.commands import EqPreset
-from shokzctl.protocol.responses import (
+from shokzer.capabilities import PROPRIETARY_FEATURES
+from shokzer.device import Selector, build_report
+from shokzer.protocol.commands import EqPreset
+from shokzer.protocol.responses import (
     Equalizer,
     MultipointDevices,
     MultipointPeer,
     MultipointStatus,
 )
-from shokzctl.service import Multipoint
-from shokzctl.state import Support
-from shokzctl.transport.bluez import BluezTree, Snapshot
-from shokzctl.ui.controller import ViewState
+from shokzer.service import Multipoint
+from shokzer.state import Support
+from shokzer.transport.bluez import BluezTree, Snapshot
+from shokzer.ui.controller import ViewState
 
 pytestmark = [
     pytest.mark.gui,
@@ -71,16 +71,9 @@ def base_state(**changes: Any) -> ViewState:
         firmware=FIRMWARE,
         headset_battery=60,
         eq=Equalizer(1, EqPreset.STANDARD, None, False),
-        capabilities=reads_only(),
+        capabilities=all_supported(),
     )
     return dataclasses.replace(state, **changes)
-
-
-def reads_only() -> dict[str, Support]:
-    reads = {"firmware_query", "battery_query", "eq_read"}
-    return {
-        f: Support.SUPPORTED if f in reads else Support.UNRESOLVED for f in PROPRIETARY_FEATURES
-    }
 
 
 def all_supported() -> dict[str, Support]:
@@ -97,7 +90,11 @@ def multipoint() -> Multipoint:
 
 def states() -> dict[str, ViewState]:
     return {
-        "reads-only": base_state(),
+        "untested-firmware": base_state(
+            firmware="BOS_HU_R_99_20260101",
+            capabilities=dict.fromkeys(PROPRIETARY_FEATURES, Support.UNTESTED),
+            multipoint=multipoint(),
+        ),
         "all-verified": base_state(
             capabilities=all_supported(),
             eq=Equalizer(5, EqPreset.CUSTOM, (-2, 0, 1, 3, -5), False),
@@ -108,10 +105,10 @@ def states() -> dict[str, ViewState]:
     }
 
 
-@pytest.mark.parametrize("name", ["reads-only", "all-verified", "busy", "no-headset"])
+@pytest.mark.parametrize("name", ["untested-firmware", "all-verified", "busy", "no-headset"])
 def test_window_renders(gtk: Any, name: str, tmp_path: Path) -> None:
     _adw, glib, gtk_mod = gtk
-    from shokzctl.ui.window import MainWindow
+    from shokzer.ui.window import MainWindow
 
     state = states()[name]
     window = MainWindow(None, StubController(state))  # type: ignore[arg-type]
@@ -120,12 +117,15 @@ def test_window_renders(gtk: Any, name: str, tmp_path: Path) -> None:
 
     custom_visible = window._custom_group.get_visible()
     connections_visible = window._connections.get_visible()
-    if name == "reads-only":
-        assert not custom_visible
-        assert not connections_visible
-        assert not window._preset_rows[EqPreset.VOCAL].get_sensitive()
+    if name == "untested-firmware":
+        # Everything works on untested firmware; a banner asks for a report.
+        assert window._banner.get_revealed()
+        assert custom_visible
+        assert connections_visible
+        assert window._preset_rows[EqPreset.VOCAL].get_sensitive()
         assert window._preset_checks[EqPreset.STANDARD].get_active()
     if name == "all-verified":
+        assert not window._banner.get_revealed()
         assert custom_visible
         assert connections_visible
         assert [int(b.get_value()) for b in window._bands] == [-2, 0, 1, 3, -5]

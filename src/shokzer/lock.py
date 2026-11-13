@@ -18,8 +18,8 @@ from .errors import ErrorCategory, ShokzError
 def default_lock_path() -> Path:
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     if runtime:
-        return Path(runtime) / "shokzctl.lock"
-    return Path(tempfile.gettempdir()) / f"shokzctl-{os.getuid()}.lock"
+        return Path(runtime) / "shokzer.lock"
+    return Path(tempfile.gettempdir()) / f"shokzer-{os.getuid()}.lock"
 
 
 class SessionLock:
@@ -35,7 +35,7 @@ class SessionLock:
             os.close(fd)
             raise ShokzError(
                 ErrorCategory.UNAVAILABLE,
-                "Another shokzctl session is using the headset's management channel.",
+                "Another shokzer session is using the headset's management channel.",
             ) from None
         self._fd = fd
 

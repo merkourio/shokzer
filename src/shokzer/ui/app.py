@@ -1,4 +1,4 @@
-"""Entry point for the GTK app (`shokzctl-gui`)."""
+"""Entry point for the GTK app (`shokzer-gui`)."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class Application(Adw.Application):  # type: ignore[misc]
 
 
 def main(argv: list[str] | None = None) -> int:
-    logging.basicConfig(level=logging.WARNING, format="shokzctl-gui: %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.WARNING, format="shokzer-gui: %(levelname)s %(message)s")
     # Runs asyncio on GLib's main loop, so dbus-fast and GTK share one thread and loop.
     with GLibEventLoopPolicy():
         status: int = Application().run(argv if argv is not None else sys.argv)
