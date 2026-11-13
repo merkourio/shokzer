@@ -183,3 +183,15 @@ async def test_bad_crc_is_accepted_only_for_the_multipoint_device_list() -> None
     assert getattr(result, "reported_count", None) == 0
     assert session.dropped_frames == 0
     await session.close()
+
+
+async def test_broken_trace_doesnt_break_the_session() -> None:
+    def broken(event: str, **fields: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    headset = FakeHeadset()
+    session = await started(headset, trace=broken)
+    assert await session.query(FIRMWARE_GET) == Firmware(TEST_FIRMWARE)
+    assert session.trace_failed
+    await session.close()
+    assert headset.closed

@@ -98,8 +98,8 @@ async def test_connect_failure_is_reported_and_profile_unregistered() -> None:
     assert caught.value.category is ErrorCategory.UNAVAILABLE
     assert "br-connection-profile-unavailable" in caught.value.message
     await connector.close()
-    assert "DisconnectProfile" not in bus.members()
-    assert bus.members()[-1] == "UnregisterProfile"
+    # BlueZ may have handed over a socket before failing, so the profile is released anyway.
+    assert bus.members()[-2:] == ["DisconnectProfile", "UnregisterProfile"]
 
 
 async def test_register_failure_skips_unregister() -> None:

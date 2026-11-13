@@ -102,6 +102,9 @@ class RfcommConnector:
             what="register the management profile",
         )
         self._registered = True
+        # From here BlueZ may hand over a socket even if the call then fails or times out,
+        # so close() asks it to disconnect the profile in any case.
+        self._connected = True
         try:
             async with asyncio.timeout(self._connect_timeout):
                 await self._call(
@@ -113,7 +116,6 @@ class RfcommConnector:
                     [SHOKZ_SERVICE_UUID],
                     what="open the headset's management channel",
                 )
-                self._connected = True
                 fd = await self._fd
         except TimeoutError:
             raise ShokzError(

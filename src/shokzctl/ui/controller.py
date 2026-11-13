@@ -95,6 +95,7 @@ class Controller:
         self._watcher: asyncio.Task[None] | None = None
         self._busy = asyncio.Lock()
         self._tasks: set[asyncio.Task[None]] = set()
+        self._closing = False
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -117,15 +118,17 @@ class Controller:
         task.add_done_callback(self._tasks.discard)
 
     async def close(self) -> None:
+        # Stop the BlueZ watcher first so it can't start a new session while we wind down.
+        self._closing = True
+        if self._watcher is not None:
+            self._watcher.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watcher
         tasks = [t for t in self._tasks if t is not asyncio.current_task()]
         for task in tasks:
             task.cancel()
         # Let cancelled sessions run their cleanup (close the channel, hand it back to BlueZ).
         await asyncio.gather(*tasks, return_exceptions=True)
-        if self._watcher is not None:
-            self._watcher.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._watcher
         if self._observer is not None:
             await self._observer.close()
 
@@ -162,8 +165,8 @@ class Controller:
     async def set_multipoint(self, enabled: bool) -> None:
         async def write(headset: Headset) -> None:
             result = await headset.set_multipoint(enabled)
-            self._absorb(headset, multipoint=await headset.read_multipoint())
             self._report(result, "Multipoint", "on" if enabled else "off")
+            await self._reread_multipoint(headset)
 
         await self._session("Changing multipoint", write, pending="multipoint")
 
@@ -173,8 +176,8 @@ class Controller:
                 result = await headset.connect_peer(address)
             else:
                 result = await headset.disconnect_peer(address)
-            self._absorb(headset, multipoint=await headset.read_multipoint())
             self._report(result, "Device", "connected" if connected else "disconnected")
+            await self._reread_multipoint(headset)
 
         verb = "Connecting" if connected else "Disconnecting"
         await self._session(f"{verb} device", write, pending=f"peer:{address}")
@@ -188,7 +191,7 @@ class Controller:
         *,
         pending: str | None = None,
     ) -> None:
-        if self._busy.locked() or self.state.report is None:
+        if self._closing or self._busy.locked() or self.state.report is None:
             return
         async with self._busy:
             self._update(busy=busy, pending=pending)
@@ -201,6 +204,16 @@ class Controller:
                 self._message(error.message)
             finally:
                 self._update(busy=None, pending=None)
+
+    async def _reread_multipoint(self, headset: Headset) -> None:
+        """Best effort after a write: the write's own result is already reported, so a failed
+        follow-up read must not replace it."""
+        try:
+            multipoint = await headset.read_multipoint()
+        except ShokzError:
+            self._update(multipoint=None)
+            return
+        self._absorb(headset, multipoint=multipoint)
 
     def _absorb(self, headset: Headset, *, multipoint: Multipoint | None = None) -> None:
         report = headset.report

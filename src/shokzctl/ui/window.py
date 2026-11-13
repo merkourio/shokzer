@@ -97,7 +97,13 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             check.connect("toggled", self._on_preset_toggled, preset)
             row = Adw.ActionRow(title=label)
             row.add_prefix(check)
-            row.set_activatable_widget(check)
+            if preset is EqPreset.CUSTOM:
+                # Only shows whether Custom is active. Selecting it would have to send band
+                # values, which would overwrite the headset's saved profile; Apply does that.
+                check.set_can_target(False)
+                check.set_focusable(False)
+            else:
+                row.set_activatable_widget(check)
             spinner = Adw.Spinner(visible=False)
             row.add_suffix(spinner)
             self._eq_group.add(row)
@@ -108,7 +114,10 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
 
         self._custom_group = Adw.PreferencesGroup(
             title="Custom EQ",
-            description="Five bands, each from -5 to 5. Band frequencies aren't published.",
+            description=(
+                "Five bands, each from -5 to 5. Apply switches to Custom and replaces the "
+                "custom EQ saved on the headset."
+            ),
         )
         self._apply = Gtk.Button(label="Apply", valign=Gtk.Align.CENTER)
         self._apply.add_css_class("suggested-action")
@@ -200,7 +209,8 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             can_write = preset in writable
             pending = state.pending == f"eq:{preset.name.lower()}"
             row = self._preset_rows[preset]
-            row.set_sensitive(idle and can_write)
+            # Custom is display-only here, so it stays readable while other rows are locked.
+            row.set_sensitive(preset is EqPreset.CUSTOM or (idle and can_write))
             subtitle = None
             if pending:
                 subtitle = "Changing…"
@@ -248,7 +258,8 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             if this_computer:
                 details.append("This computer")
             row = Adw.ActionRow(title=peer.name, subtitle=" · ".join(details))
-            if state.can("multipoint_peers") and not this_computer:
+            # Without our own address we can't tell this computer apart, so offer nothing.
+            if state.can("multipoint_peers") and own is not None and not this_computer:
                 button = Gtk.Button(
                     label="Disconnect" if peer.connected else "Connect",
                     valign=Gtk.Align.CENTER,
@@ -270,8 +281,7 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         if self._rendering or not check.get_active():
             return
         if preset is EqPreset.CUSTOM:
-            self._on_apply_custom()
-            return
+            return  # never written from the radio; see _build
         self._run(self._controller.set_preset(preset))
 
     def _on_apply_custom(self, *_: Any) -> None:

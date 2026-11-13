@@ -183,12 +183,21 @@ async def test_multipoint_status_and_devices(sim: SimHeadset) -> None:
     assert state.devices.skipped == 1
 
 
-async def test_multipoint_on_is_confirmed(sim: SimHeadset) -> None:
+async def test_multipoint_on_is_confirmed(sim: SimHeadset, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(responses, "MULTIPOINT_OFF_VALUES", frozenset({MULTIPOINT_OFF_RAW}))
     sim.state.multipoint_raw = MULTIPOINT_OFF_RAW
     headset = await open_headset(sim)
     result = await headset.set_multipoint(True, allow_unverified=True)
     assert result.outcome is WriteOutcome.CONFIRMED
-    assert result.previous == f"unknown (0x{MULTIPOINT_OFF_RAW:08x})"
+    assert result.previous == "off"
+
+
+async def test_multipoint_change_from_an_unknown_value_is_refused(sim: SimHeadset) -> None:
+    sim.state.multipoint_raw = MULTIPOINT_OFF_RAW  # no source names this value yet
+    headset = await open_headset(sim)
+    with pytest.raises(ShokzError, match="no source names"):
+        await headset.set_multipoint(True, allow_unverified=True)
+    assert sim.writes() == []
 
 
 async def test_multipoint_off_sends_this_computers_address(sim: SimHeadset) -> None:
@@ -210,7 +219,8 @@ async def test_multipoint_off_confirmed_once_the_value_is_known(
     assert result.outcome is WriteOutcome.CONFIRMED
 
 
-async def test_multipoint_refusal_status(sim: SimHeadset) -> None:
+async def test_multipoint_refusal_status(sim: SimHeadset, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(responses, "MULTIPOINT_OFF_VALUES", frozenset({MULTIPOINT_OFF_RAW}))
     sim.state.multipoint_raw = MULTIPOINT_OFF_RAW
     sim.state.write_status = 0x05
     headset = await open_headset(sim)
@@ -268,3 +278,46 @@ async def test_already_connected_device(sim: SimHeadset) -> None:
     headset = await open_headset(sim)
     result = await headset.connect_peer(LAPTOP, allow_unverified=True)
     assert result.outcome is WriteOutcome.ALREADY_SET
+
+
+async def test_unexplained_status_is_judged_by_the_readback(sim: SimHeadset) -> None:
+    sim.state.peers[1].connected = True
+    sim.state.write_status = 0x07
+    sim.state.apply_writes = True
+    headset = await open_headset(sim)
+    # The simulated headset ignores writes with a non-zero status, so the readback decides.
+    result = await headset.disconnect_peer(PHONE, allow_unverified=True)
+    assert result.outcome is WriteOutcome.REJECTED
+    assert "0x00000007" in (result.detail or "")
+
+
+async def test_no_acknowledgement_and_old_value_is_uncertain(sim: SimHeadset) -> None:
+    sim.state.ack_writes = False
+    sim.state.apply_writes = False
+    headset = await open_headset(sim)
+    result = await headset.set_preset(EqPreset.VOCAL, allow_unverified=True)
+    assert result.outcome is WriteOutcome.UNCERTAIN
+    assert "read again before retrying" in (result.detail or "")
+    assert len(eq_writes(sim)) == 1
+
+
+async def test_peer_changes_need_this_computers_address(sim: SimHeadset) -> None:
+    import dataclasses
+
+    headset = await open_headset(sim)
+    adapter = dataclasses.replace(headset.report.adapter, address=None)
+    headset.report = dataclasses.replace(headset.report, adapter=adapter)
+    with pytest.raises(ShokzError, match="can't be told apart"):
+        await headset.disconnect_peer(PHONE, allow_unverified=True)
+    assert sim.sent == []
+
+
+async def test_connect_needs_multipoint_on(
+    sim: SimHeadset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(responses, "MULTIPOINT_OFF_VALUES", frozenset({MULTIPOINT_OFF_RAW}))
+    sim.state.multipoint_raw = MULTIPOINT_OFF_RAW
+    headset = await open_headset(sim)
+    with pytest.raises(ShokzError, match="could drop this computer"):
+        await headset.connect_peer(PHONE, allow_unverified=True)
+    assert sim.writes() == []

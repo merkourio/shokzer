@@ -272,11 +272,11 @@ class Headset:
                 acknowledged=None, readback=eq_label(before), outcome=WriteOutcome.ALREADY_SET
             )
         sent = await self._send_once(EQUALIZER_SET, args)
-        if sent.failure is not None:
+        if sent.failure is not None:  # the channel failed: nothing can be read back
             return result(
                 acknowledged=sent.acknowledged,
                 readback=None,
-                outcome=sent.outcome,
+                outcome=WriteOutcome.UNCERTAIN,
                 detail=sent.failure,
             )
         back = await self._read_until(self._read_eq, confirmed)
@@ -289,7 +289,7 @@ class Headset:
                 detail=error,
             )
         if not confirmed(after):
-            outcome, detail = WriteOutcome.NOT_APPLIED, None
+            outcome, detail = sent.unconfirmed()
         elif after.preset is EqPreset.CUSTOM and after.bands is None:
             outcome = WriteOutcome.PARTLY_CONFIRMED
             detail = "The headset reported the custom preset but not its band values."
@@ -311,6 +311,13 @@ class Headset:
             previous=multipoint_label(before),
             verified=verified,
         )
+        if before.enabled is None:
+            raise ShokzError(
+                ErrorCategory.UNSUPPORTED,
+                f"Multipoint reads 0x{before.raw:08x}, which no source names as on or off; "
+                "not changing it.",
+                hint="Record the value from `shokzctl multipoint status` so it can be added.",
+            )
         if before.enabled is enabled:
             return result(
                 acknowledged=None,
@@ -329,11 +336,11 @@ class Headset:
                 )
             command, args = MULTIPOINT_OFF, multipoint_off_request(own).args
         sent = await self._send_once(command, args)
-        if sent.failure is not None:
+        if sent.failure is not None:  # the channel failed: nothing can be read back
             return result(
                 acknowledged=sent.acknowledged,
                 readback=None,
-                outcome=sent.outcome,
+                outcome=WriteOutcome.UNCERTAIN,
                 detail=sent.failure,
             )
 
@@ -352,7 +359,7 @@ class Headset:
             outcome = WriteOutcome.UNCERTAIN
             detail = f"Multipoint now reads 0x{after.raw:08x}, a value no source names yet."
         else:
-            outcome, detail = WriteOutcome.NOT_APPLIED, None
+            outcome, detail = sent.unconfirmed()
         return result(
             acknowledged=sent.acknowledged,
             readback=None if after is None else multipoint_label(after),
@@ -374,11 +381,25 @@ class Headset:
         except ValueError as invalid:
             raise ShokzError(ErrorCategory.INVALID_INPUT, str(invalid)) from None
         own = self.report.adapter.address
-        if own is not None and address == own.upper():
+        if own is None:
+            raise ShokzError(
+                ErrorCategory.UNAVAILABLE,
+                "BlueZ doesn't report this adapter's address, so this computer can't be told "
+                "apart from other devices; not changing connections.",
+            )
+        if address == own.upper():
             raise ShokzError(
                 ErrorCategory.INVALID_INPUT,
                 "That address is this computer. Use GNOME Settings to connect or disconnect it.",
             )
+        if connect:
+            status = await self._query(MULTIPOINT_GET, MultipointStatus)
+            if status.enabled is not True:
+                raise ShokzError(
+                    ErrorCategory.UNSUPPORTED,
+                    f"Multipoint is {multipoint_label(status)}. Connecting another device "
+                    "could drop this computer, so it's only done with multipoint on.",
+                )
         peer = _find_peer(await self._query(MULTIPOINT_DEVICES_GET, MultipointDevices), address)
         if peer is None:
             raise ShokzError(
@@ -397,11 +418,11 @@ class Headset:
                 acknowledged=None, readback=_peer_label(peer), outcome=WriteOutcome.ALREADY_SET
             )
         sent = await self._send_once(MULTIPOINT_CONNECT if connect else MULTIPOINT_DISCONNECT, args)
-        if sent.failure is not None:
+        if sent.failure is not None:  # the channel failed: nothing can be read back
             return result(
                 acknowledged=sent.acknowledged,
                 readback=None,
-                outcome=sent.outcome,
+                outcome=WriteOutcome.UNCERTAIN,
                 detail=sent.failure,
             )
 
@@ -424,8 +445,16 @@ class Headset:
                 outcome=WriteOutcome.UNCERTAIN,
                 detail=error or "The device no longer appears in the headset's list.",
             )
-        outcome = WriteOutcome.CONFIRMED if after.connected is connect else WriteOutcome.NOT_APPLIED
-        return result(acknowledged=sent.acknowledged, readback=_peer_label(after), outcome=outcome)
+        if after.connected is connect:
+            outcome, detail = WriteOutcome.CONFIRMED, None
+        else:
+            outcome, detail = sent.unconfirmed()
+        return result(
+            acknowledged=sent.acknowledged,
+            readback=_peer_label(after),
+            outcome=outcome,
+            detail=detail,
+        )
 
     # --- helpers -----------------------------------------------------------------------------
 
@@ -449,15 +478,10 @@ class Headset:
             if error.category is ErrorCategory.TIMEOUT:
                 return _Sent(acknowledged=False)
             return _Sent(acknowledged=None, failure=error.message)
-        if isinstance(reply, Acknowledgement) and reply.status not in (None, 0):
-            if reply.status == TOO_MANY_CONNECTED:
-                reason = "too many devices are connected to the headset"
-            else:
-                reason = f"status 0x{reply.status:08x}"
-            return _Sent(
-                acknowledged=True, failure=f"The headset refused: {reason}.", rejected=True
-            )
-        return _Sent(acknowledged=True)
+        status = reply.status if isinstance(reply, Acknowledgement) else None
+        # A status is only interpreted after the readback: sources name 0 and, for connect,
+        # 0x400; any other value alone doesn't prove the change failed.
+        return _Sent(acknowledged=True, status=status)
 
     async def _read_until[T](
         self,
@@ -495,13 +519,23 @@ class _Readback[T]:
 
 @dataclass(frozen=True)
 class _Sent:
-    acknowledged: bool | None
-    failure: str | None = None
-    rejected: bool = False
+    acknowledged: bool | None  # False: no reply in time; None: the channel failed
+    status: int | None = None
+    failure: str | None = None  # channel failure; set only when acknowledged is None
 
-    @property
-    def outcome(self) -> WriteOutcome:
-        return WriteOutcome.REJECTED if self.rejected else WriteOutcome.UNCERTAIN
+    def unconfirmed(self) -> tuple[WriteOutcome, str | None]:
+        """Outcome when the readback still shows something other than what was asked for."""
+        if self.status == TOO_MANY_CONNECTED:
+            return WriteOutcome.REJECTED, "The headset refused: too many devices are connected."
+        if self.status not in (None, 0):
+            return WriteOutcome.REJECTED, f"The headset answered with status 0x{self.status:08x}."
+        if self.acknowledged is False:
+            return (
+                WriteOutcome.UNCERTAIN,
+                "No acknowledgement, and it still reads the old value. It may not have arrived "
+                "or may still land; read again before retrying.",
+            )
+        return WriteOutcome.NOT_APPLIED, None
 
 
 @asynccontextmanager
@@ -531,10 +565,12 @@ async def connect(
             firmware = _expect(await session.query(FIRMWARE_GET), Firmware, FIRMWARE_GET)
             yield Headset(session, _with_firmware(report, firmware.version))
         finally:
-            if session is not None:
-                await session.close()
-            await connector.close()
-            trace("closed")
+            try:
+                if session is not None:
+                    await session.close()
+            finally:
+                await connector.close()
+                trace("closed")
 
 
 async def read_status(

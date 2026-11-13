@@ -7,7 +7,6 @@ the outcome is uncertain and the caller must read the state back before doing an
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from collections.abc import Callable
 
 from .errors import ErrorCategory, ShokzError
@@ -42,7 +41,8 @@ class ManagementSession:
     ) -> None:
         self._channel = channel
         self._reply_timeout = reply_timeout
-        self._trace = trace
+        self._trace_sink = trace
+        self.trace_failed = False
         self._decoder = StreamDecoder()
         self._lock = asyncio.Lock()
         self._pending: tuple[tuple[int, int], asyncio.Future[Message]] | None = None
@@ -108,9 +108,16 @@ class ManagementSession:
         self._closed = True
         if self._reader is not None:
             self._reader.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._reader
+            # The reader may already have died; its error was reported to any waiting request.
+            await asyncio.gather(self._reader, return_exceptions=True)
         await self._channel.close()
+
+    def _trace(self, event: str, **fields: object) -> None:
+        """A broken trace file must not break the session."""
+        try:
+            self._trace_sink(event, **fields)
+        except Exception:
+            self.trace_failed = True
 
     # --- receiving --------------------------------------------------------------------------
 
