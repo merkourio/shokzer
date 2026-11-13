@@ -25,5 +25,30 @@
     "VOCAL": "02fafe0405010000",
     "BASS": "0309f90000000000",
     "TREBLE": "0400000104050000"
+  },
+  "fragmented_device_list": {
+    "kind": "hardware capture, sanitized: device addresses and names replaced, CRC recomputed; fragment headers, sizes and split point as captured",
+    "source": "local/traces/2026-11-13-C1-multipoint-status.jsonl (outside Git), shokzctl 14e6d78, firmware BOS_HU_R_47_20251023",
+    "fragments": [
+      "a55a780002010000a2007761010000009a000000020000000400000002000000030000000400000004800000040000007a000000000300011111111111011f50686f6e65000000000000000000000000000000000000000000000000000001021111111111011f4c6170746f7000000000000000000000000000000000000000",
+      "a55a2e000202000000000000000002031111111111001f5461626c657400000000000000000000000000000000000000000000000000"
+    ],
+    "devices": [
+      {
+        "address": "11:11:11:11:11:01",
+        "name": "Phone",
+        "connected": true
+      },
+      {
+        "address": "11:11:11:11:11:02",
+        "name": "Laptop",
+        "connected": true
+      },
+      {
+        "address": "11:11:11:11:11:03",
+        "name": "Tablet",
+        "connected": false
+      }
+    ]
   }
 }

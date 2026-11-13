@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fake_headset import TEST_FIRMWARE, FakeHeadset, frame
+from fake_headset import TEST_FIRMWARE, FakeHeadset, fragmented, frame
 
 from shokzctl.protocol.packets import Message
 from shokzctl.protocol.responses import MULTIPOINT_ON_VALUE
@@ -87,7 +87,8 @@ class SimHeadset(FakeHeadset):
             self.push(frame(0x02, 0x8010, st.multipoint_raw.to_bytes(4, "little")))
         elif key == (0x02, 0x0004):
             self._maybe_apply()
-            self.push(frame(0x02, 0x8004, self._device_list()))
+            for part in fragmented(0x02, 0x8004, self._device_list()):
+                self.push(part)
         elif key in ((0x01, 0x0011), (0x01, 0x0010)):
             on = key == (0x01, 0x0011)
             self._write({"multipoint_raw": MULTIPOINT_ON_VALUE if on else MULTIPOINT_OFF_RAW})

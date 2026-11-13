@@ -9,14 +9,18 @@ import pytest
 from fake_headset import TEST_FIRMWARE, FakeHeadset, frame
 
 from shokzctl.errors import ErrorCategory, ShokzError
-from shokzctl.protocol.commands import BATTERY_GET, EQUALIZER_GET, FIRMWARE_GET
+from shokzctl.protocol.commands import (
+    BATTERY_GET,
+    EQUALIZER_GET,
+    FIRMWARE_GET,
+    MULTIPOINT_DEVICES_GET,
+)
 from shokzctl.protocol.packets import Message
-from shokzctl.protocol.responses import Battery, Firmware
+from shokzctl.protocol.responses import Battery, Firmware, MultipointDevices
 from shokzctl.session import ManagementSession
 
-UPSTREAM_FIRMWARE_GET = json.loads(
-    (Path(__file__).parent / "fixtures" / "protocol_vectors.json").read_text()
-)["vectors"][0]["hex"]
+VECTORS = json.loads((Path(__file__).parent / "fixtures" / "protocol_vectors.json").read_text())
+UPSTREAM_FIRMWARE_GET = VECTORS["vectors"][0]["hex"]
 
 
 class Recorder:
@@ -172,16 +176,27 @@ async def test_trace_records_traffic() -> None:
     assert trace.events[2]["name"] == "FIRMWARE_RET"
 
 
-async def test_bad_crc_is_accepted_only_for_the_multipoint_device_list() -> None:
-    from shokzctl.protocol.commands import MULTIPOINT_DEVICES_GET
-
+async def test_bad_crc_is_dropped_for_every_reply_type() -> None:
     bad = bytearray(frame(0x02, 0x8004, bytes([0, 0])))
     bad[10] ^= 0xFF  # corrupt the CRC field
     headset = FakeHeadset(replies={(0x02, 0x0004): [bytes(bad)]})
     session = await started(headset)
+    with pytest.raises(ShokzError) as caught:
+        await session.query(MULTIPOINT_DEVICES_GET)
+    assert caught.value.category is ErrorCategory.TIMEOUT
+    assert session.dropped_frames == 1
+    await session.close()
+
+
+async def test_fragmented_reply_is_matched_once_reassembled() -> None:
+    fragments = [bytes.fromhex(h) for h in VECTORS["fragmented_device_list"]["fragments"]]
+    trace = Recorder()
+    headset = FakeHeadset(replies={(0x02, 0x0004): fragments})
+    session = await started(headset, trace=trace)
     result = await session.query(MULTIPOINT_DEVICES_GET)
-    assert getattr(result, "reported_count", None) == 0
-    assert session.dropped_frames == 0
+    assert isinstance(result, MultipointDevices)
+    assert len(result.peers) == 3
+    assert [e.get("fragments") for e in trace.events if e["event"] == "reply"] == [2]
     await session.close()
 
 

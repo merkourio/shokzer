@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import struct
 from collections.abc import Callable
 from typing import Any
 
@@ -23,6 +24,19 @@ TEST_FIRMWARE = "TEST_FW_1"
 
 def frame(group: int, code: int, args: bytes = b"") -> bytes:
     return encode(Frame(group, code, args))
+
+
+def fragmented(group: int, code: int, args: bytes = b"", first: int = 116) -> list[bytes]:
+    """Split a reply into two fragments the way the Pro 2 did for its device list (C1):
+    the first carries the header and `first` payload bytes, the second the rest."""
+    whole = frame(group, code, args)
+    payload = whole[12:]
+    if len(payload) <= first:
+        return [whole]
+    head = whole[:2] + struct.pack("<HBBH", first + 4, 2, 1, 0) + whole[8:12]
+    rest = payload[first:]
+    tail = whole[:2] + struct.pack("<HBBH", len(rest), 2, 2, 0)
+    return [head + payload[:first], tail + rest]
 
 
 def default_replies() -> dict[tuple[int, int], list[bytes]]:

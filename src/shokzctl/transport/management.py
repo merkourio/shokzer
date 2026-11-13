@@ -288,7 +288,14 @@ def _bluez_error(reply: Message, what: str) -> ShokzError:
     detail = f"{name}: {_error_text(reply)}" if _error_text(reply) else name
     if name in ("org.bluez.Error.NotPermitted", "org.bluez.Error.NotAuthorized"):
         return ShokzError(ErrorCategory.PERMISSION, f"BlueZ wouldn't {what} ({detail}).")
-    return ShokzError(ErrorCategory.UNAVAILABLE, f"BlueZ couldn't {what} ({detail}).")
+    hint = None
+    if "br-connection-refused" in (_error_text(reply) or ""):
+        # Seen 2026-11-13 (test D1) while the Shokz phone app was connected.
+        hint = (
+            "The headset takes one management connection at a time. "
+            "If the Shokz phone app is open, force-stop it and try again."
+        )
+    return ShokzError(ErrorCategory.UNAVAILABLE, f"BlueZ couldn't {what} ({detail}).", hint=hint)
 
 
 def _error_text(reply: Message) -> str | None:

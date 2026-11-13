@@ -1,18 +1,26 @@
 """Frame encoding and stream decoding.
 
-Layout (all little-endian), from Gadgetbridge ShokzSupport.encodeCommand and onSocketRead:
+Layout (all little-endian). The single-frame form is from Gadgetbridge ShokzSupport.encodeCommand
+and onSocketRead; fragmentation was observed on an OpenRun Pro 2 (docs/test-results.md, C1).
 
     offset  size  field
     0       2     preamble A5 5A
-    2       2     frame length after the first 8 bytes (= payload length + 4)
-    4       4     header flags, sent as 01 00 00 00; meaning of bytes 5-7 unknown
-    8       2     payload length
-    10      2     CRC-16/MAXIM of the payload
-    12      n     payload:
-                    u32 1, u32 remaining length,
-                    u32 2, u32 4, u32 group,
-                    u32 3, u32 4, u32 code,
-                    u32 4, u32 args length, args
+    2       2     frame length: bytes after offset 8 in this frame
+    4       1     fragment count (1 when not fragmented)
+    5       1     fragment number: 0 in requests, 1..count in headset frames
+    6       2     zero
+  first (or only) fragment:
+    8       2     total payload length
+    10      2     CRC-16/MAXIM of the whole payload
+    12      n     payload bytes, n = frame length - 4
+  later fragments:
+    8       n     payload bytes, n = frame length
+
+Payload:
+    u32 1, u32 remaining length,
+    u32 2, u32 4, u32 group,
+    u32 3, u32 4, u32 code,
+    u32 4, u32 args length, args
 """
 
 from __future__ import annotations
@@ -25,6 +33,8 @@ HEADER_SIZE = 12
 PAYLOAD_FIXED_SIZE = 40
 REQUEST_FLAGS = b"\x01\x00\x00\x00"
 MAX_FRAME_SIZE = 2048  # Gadgetbridge's receive buffer (MAX_MTU)
+MAX_PAYLOAD_SIZE = MAX_FRAME_SIZE
+MAX_FRAGMENTS = 16  # sanity bound only; the largest seen is 2
 
 
 class MalformedFrameError(ValueError):
@@ -40,9 +50,10 @@ class Message:
 
 @dataclass(frozen=True)
 class Frame:
-    flags: bytes
+    flags: bytes  # of the first fragment
     payload: bytes
     crc_valid: bool
+    fragments: int = 1
 
 
 def crc16_maxim(data: bytes) -> int:
@@ -90,16 +101,20 @@ def decode_payload(payload: bytes) -> Message:
 
 
 class StreamDecoder:
-    """Turns RFCOMM reads into frames. Handles split and coalesced frames and skips junk.
+    """Turns RFCOMM reads into frames. Handles split and coalesced reads, reassembles
+    fragmented frames, and skips junk.
 
-    A frame whose length fields disagree is treated as junk: the decoder skips its preamble
-    and searches again. CRC failures are reported on the frame, not dropped here, because
-    Gadgetbridge documents one reply type with a known bad CRC.
+    A header that doesn't fit the layout is treated as junk: the decoder skips its preamble
+    and searches again. A fragment that doesn't continue the frame being assembled abandons
+    it (counted in dropped_fragments). CRC failures are reported on the frame for the caller
+    to decide.
     """
 
     def __init__(self) -> None:
         self._buffer = bytearray()
+        self._assembly: _Assembly | None = None
         self.skipped_bytes = 0
+        self.dropped_fragments = 0
 
     def feed(self, data: bytes) -> list[Frame]:
         self._buffer += data
@@ -112,28 +127,82 @@ class StreamDecoder:
                 self._skip(len(self._buffer) - keep)
                 return frames
             self._skip(start)
-            if len(self._buffer) < HEADER_SIZE:
+            if len(self._buffer) < 8:
                 return frames
-            frame_len, payload_len, crc = struct.unpack_from("<H4xHH", self._buffer, 2)
-            if frame_len != payload_len + 4 or HEADER_SIZE + payload_len > MAX_FRAME_SIZE:
+            frame_len, count, number, reserved = struct.unpack_from("<HBBH", self._buffer, 2)
+            if not 1 <= count <= MAX_FRAGMENTS or reserved or frame_len > MAX_FRAME_SIZE:
                 self._skip(len(PREAMBLE))
                 continue
-            end = HEADER_SIZE + payload_len
+            first = count == 1 or number <= 1
+            if first:
+                if len(self._buffer) < HEADER_SIZE:
+                    return frames
+                total, crc = struct.unpack_from("<HH", self._buffer, 8)
+                size = frame_len - 4
+                fits = size == total if count == 1 else 0 <= size < total
+                if frame_len < 4 or total > MAX_PAYLOAD_SIZE or not fits:
+                    self._skip(len(PREAMBLE))
+                    continue
+            end = 8 + frame_len
             if len(self._buffer) < end:
                 return frames
-            payload = bytes(self._buffer[HEADER_SIZE:end])
             flags = bytes(self._buffer[4:8])
+            chunk = bytes(self._buffer[HEADER_SIZE if first else 8 : end])
             del self._buffer[:end]
-            frames.append(Frame(flags, payload, crc16_maxim(payload) == crc))
+            if first:
+                self._abandon()
+                if count == 1:
+                    frames.append(Frame(flags, chunk, crc16_maxim(chunk) == crc))
+                else:
+                    self._assembly = _Assembly(count, total, crc, flags, bytearray(chunk))
+                continue
+            done = self._continue(count, number, chunk)
+            if done is not None:
+                frames.append(done)
 
     @property
     def pending(self) -> int:
         return len(self._buffer)
 
+    def _continue(self, count: int, number: int, chunk: bytes) -> Frame | None:
+        assembly = self._assembly
+        if assembly is None or count != assembly.count or number != assembly.next:
+            self.dropped_fragments += 1
+            self._abandon()
+            return None
+        assembly.data += chunk
+        assembly.next += 1
+        if len(assembly.data) > assembly.total:
+            self._abandon()
+            return None
+        if number < count:
+            return None
+        self._assembly = None
+        if len(assembly.data) != assembly.total:
+            self.dropped_fragments += count
+            return None
+        payload = bytes(assembly.data)
+        return Frame(assembly.flags, payload, crc16_maxim(payload) == assembly.crc, count)
+
+    def _abandon(self) -> None:
+        if self._assembly is not None:
+            self.dropped_fragments += self._assembly.next - 1
+            self._assembly = None
+
     def _skip(self, count: int) -> None:
         if count > 0:
             del self._buffer[:count]
             self.skipped_bytes += count
+
+
+@dataclass
+class _Assembly:
+    count: int
+    total: int
+    crc: int
+    flags: bytes
+    data: bytearray
+    next: int = 2
 
 
 def _check_u32(value: int, name: str) -> None:

@@ -152,3 +152,14 @@ async def test_messages_for_other_paths_are_left_alone() -> None:
     connector = RfcommConnector(bus, DEVICE_PATH)
     other = Message(path="/somewhere/else", interface="org.example.X", member="Y", serial=1)
     assert connector._on_message(other) is None
+
+
+async def test_refused_connection_suggests_closing_the_phone_app() -> None:
+    bus = FakeProfileBus(
+        errors={"ConnectProfile": ("org.bluez.Error.Failed", "br-connection-refused")}
+    )
+    connector = RfcommConnector(bus, DEVICE_PATH)
+    with pytest.raises(ShokzError) as caught:
+        await connector.open()
+    assert "Shokz phone app" in (caught.value.hint or "")
+    await connector.close()

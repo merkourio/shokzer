@@ -323,3 +323,72 @@ def test_multipoint_name_stops_at_nul() -> None:
 def test_status_acknowledgement() -> None:
     ack = decode(Message(0x01, 0x8011, (0).to_bytes(4, "little")))
     assert ack == Acknowledgement(0x01, 0x8011, bytes(4), 0)
+
+
+# --- fragmented frames (observed on the Pro 2 for the multipoint device list) ---------------
+
+FRAGMENTED = VECTORS["fragmented_device_list"]
+FRAG1, FRAG2 = (bytes.fromhex(h) for h in FRAGMENTED["fragments"])
+
+
+def test_captured_fragments_reassemble_with_a_valid_crc() -> None:
+    decoder = StreamDecoder()
+    assert decoder.feed(FRAG1) == []
+    frames = decoder.feed(FRAG2)
+    assert len(frames) == 1
+    assert frames[0].crc_valid
+    assert frames[0].fragments == 2
+    assert frames[0].flags == b"\x02\x01\x00\x00"
+    devices = decode(decode_payload(frames[0].payload))
+    assert isinstance(devices, MultipointDevices)
+    assert [(p.address, p.name, p.connected) for p in devices.peers] == [
+        (d["address"], d["name"], d["connected"]) for d in FRAGMENTED["devices"]
+    ]
+    assert devices.skipped == 0
+
+
+def test_fragments_survive_any_split_of_the_stream() -> None:
+    data = FRAG1 + FRAG2
+    for cut in range(1, len(data)):
+        decoder = StreamDecoder()
+        frames = decoder.feed(data[:cut]) + decoder.feed(data[cut:])
+        assert len(frames) == 1, cut
+        assert frames[0].crc_valid
+        assert decoder.pending == 0
+
+
+def test_fragments_coalesced_with_a_normal_frame() -> None:
+    normal = encode(Message(0x02, 0x8003, b"\x00\x05"))
+    frames = StreamDecoder().feed(normal + FRAG1 + FRAG2 + normal)
+    assert [f.fragments for f in frames] == [1, 2, 1]
+
+
+def test_continuation_without_a_first_fragment_is_dropped() -> None:
+    decoder = StreamDecoder()
+    assert decoder.feed(FRAG2) == []
+    assert decoder.dropped_fragments == 1
+
+
+def test_missing_continuation_abandons_the_frame() -> None:
+    decoder = StreamDecoder()
+    normal = encode(Message(0x02, 0x8003, b"\x00\x05"))
+    frames = decoder.feed(FRAG1 + normal)
+    assert [decode_payload(f.payload).code for f in frames] == [0x8003]
+    assert decoder.dropped_fragments == 1
+    assert decoder.feed(FRAG2) == []  # too late: its first part is gone
+
+
+def test_fragment_numbers_must_follow_in_order() -> None:
+    out_of_order = bytearray(FRAG2)
+    out_of_order[5] = 3
+    decoder = StreamDecoder()
+    assert decoder.feed(FRAG1 + bytes(out_of_order)) == []
+    assert decoder.dropped_fragments >= 1
+
+
+def test_first_fragment_must_be_shorter_than_the_total() -> None:
+    bad = bytearray(FRAG1)
+    struct.pack_into("<H", bad, 8, len(FRAG1) - 12)  # claims the first part is everything
+    decoder = StreamDecoder()
+    assert decoder.feed(bytes(bad)) == []
+    assert decoder.skipped_bytes > 0
