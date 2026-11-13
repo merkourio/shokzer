@@ -8,7 +8,18 @@ from typing import Any
 from .capabilities import MODEL_NAME
 from .device import AmbiguousSelectionError
 from .errors import ShokzError
+from .protocol.responses import Equalizer
+from .service import Multipoint, WriteOutcome, WriteResult, multipoint_label
 from .state import AdapterInfo, DeviceInfo, DiagnoseReport, Observed
+
+_OUTCOME_TEXT = {
+    WriteOutcome.CONFIRMED: "confirmed",
+    WriteOutcome.PARTLY_CONFIRMED: "preset confirmed, band values not reported",
+    WriteOutcome.ALREADY_SET: "already set, nothing sent",
+    WriteOutcome.NOT_APPLIED: "not applied",
+    WriteOutcome.REJECTED: "refused by the headset",
+    WriteOutcome.UNCERTAIN: "outcome uncertain",
+}
 
 DIAGNOSE_SCHEMA = "shokzctl.diagnose/1"
 STATUS_SCHEMA = "shokzctl.status/1"
@@ -143,6 +154,101 @@ class Formatter:
         lines += [f"  {label:<11} {value}" for label, value in rows]
         lines += [f"  ! {w}" for w in report.warnings]
         return "\n".join(lines) + "\n"
+
+    # --- headset commands -----------------------------------------------------------------
+
+    def eq_dict(self, report: DiagnoseReport, eq: Equalizer) -> dict[str, Any]:
+        return self._headset_envelope(
+            report,
+            result={
+                "eq": _observed(report.active_eq),
+                "code": eq.code,
+                "bands": list(eq.bands) if eq.bands is not None else None,
+            },
+        )
+
+    def eq_text(self, report: DiagnoseReport) -> str:
+        return f"EQ  {_text(report.active_eq)}\n" + self._warnings(report)
+
+    def multipoint_dict(self, report: DiagnoseReport, state: Multipoint) -> dict[str, Any]:
+        return self._headset_envelope(
+            report,
+            result={
+                "enabled": state.status.enabled,
+                "raw": f"0x{state.status.raw:08x}",
+                "reported_slots": state.devices.reported_count,
+                "skipped_entries": state.devices.skipped,
+                "devices": [
+                    {
+                        "index": peer.index,
+                        "name": peer.name,
+                        "address": self.address(peer.address),
+                        "connected": peer.connected,
+                        "this_computer": peer.address == report.adapter.address,
+                    }
+                    for peer in state.devices.peers
+                ],
+            },
+        )
+
+    def multipoint_text(self, report: DiagnoseReport, state: Multipoint) -> str:
+        lines = [f"Multipoint  {multipoint_label(state.status)}"]
+        if not state.devices.peers:
+            lines.append("  No remembered devices reported.")
+        for peer in state.devices.peers:
+            marks = ["connected" if peer.connected else "not connected"]
+            if peer.address == report.adapter.address:
+                marks.append("this computer")
+            lines.append(f"  {peer.name}  {self.address(peer.address)}  {', '.join(marks)}")
+        if state.devices.skipped:
+            lines.append(f"  ({state.devices.skipped} implausible entries skipped)")
+        return "\n".join(lines) + "\n" + self._warnings(report)
+
+    def write_dict(self, report: DiagnoseReport, result: WriteResult) -> dict[str, Any]:
+        body = self._headset_envelope(
+            report,
+            result={
+                "setting": result.setting,
+                "requested": result.requested,
+                "previous": result.previous,
+                "acknowledged": result.acknowledged,
+                "readback": result.readback,
+                "outcome": result.outcome.value,
+                "verified": result.verified,
+                "detail": result.detail,
+            },
+        )
+        body["ok"] = result.ok
+        return body
+
+    def write_text(self, result: WriteResult) -> str:
+        what = {"eq": "EQ", "multipoint": "Multipoint", "peer": "Device"}[result.setting]
+        lines = [f"{what} {result.requested}: {_OUTCOME_TEXT[result.outcome]}"]
+        rows = [
+            ("Before", result.previous or "unknown"),
+            ("Read back", result.readback or "nothing"),
+            ("Acknowledged", {True: "yes", False: "no reply", None: "n/a"}[result.acknowledged]),
+        ]
+        lines += [f"  {label:<12} {value}" for label, value in rows]
+        if result.detail:
+            lines.append(f"  {result.detail}")
+        if result.outcome is WriteOutcome.UNCERTAIN:
+            lines.append("  Don't repeat the change blindly; read the current state first.")
+        if not result.verified and result.acknowledged is not None:
+            lines.append("  ! Not verified on this firmware (--allow-unverified).")
+        return "\n".join(lines) + "\n"
+
+    def _headset_envelope(self, report: DiagnoseReport, **payload: Any) -> dict[str, Any]:
+        return self._envelope(
+            ok=True,
+            firmware=_observed(report.firmware),
+            warnings=list(report.warnings),
+            **payload,
+        )
+
+    @staticmethod
+    def _warnings(report: DiagnoseReport) -> str:
+        return "".join(f"  ! {w}\n" for w in report.warnings)
 
     def error_text(self, error: ShokzError) -> str:
         lines = [f"shokzctl: {error.message}"]

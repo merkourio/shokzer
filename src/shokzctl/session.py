@@ -20,7 +20,7 @@ from .protocol.packets import (
     decode_payload,
     encode,
 )
-from .protocol.responses import Decoded, decode
+from .protocol.responses import MULTIPOINT_DEVICES_RET, Decoded, decode
 from .transport.base import Channel
 
 DEFAULT_REPLY_TIMEOUT = 2.0  # Gadgetbridge's per-request timeout (ShokzSupport.kt:810)
@@ -137,10 +137,6 @@ class ManagementSession:
             )
 
     def _on_frame(self, frame: Frame) -> None:
-        if not frame.crc_valid:
-            self.dropped_frames += 1
-            self._trace("drop", hex=frame.payload.hex(), note="bad CRC")
-            return
         try:
             message = decode_payload(frame.payload)
         except MalformedFrameError as error:
@@ -148,6 +144,14 @@ class ManagementSession:
             self._trace("drop", hex=frame.payload.hex(), note=str(error))
             return
         key = (message.group, message.code)
+        if not frame.crc_valid:
+            if key != MULTIPOINT_DEVICES_RET:
+                self.dropped_frames += 1
+                self._trace("drop", hex=frame.payload.hex(), note="bad CRC")
+                return
+            # Known Pro 2 firmware quirk: wrong CRC on this reply with >2 remembered devices
+            # (ShokzSupport.kt:155-171). Accepted for this reply type only.
+            self._trace("crc_quirk", name="MULTIPOINT_DEVICES_RET")
         name = name_of(*key)
         if self._pending is not None and self._pending[0] == key:
             future = self._pending[1]

@@ -12,6 +12,21 @@ BATTERY_RET = (0x02, 0x8003)
 EQUALIZER_RET = (0x02, 0x8008)
 EQUALIZER_NOTIFY = (0x03, 0x0009)  # Gadgetbridge calls it EQUALIZER_ACK
 EQUALIZER_SET_ACK = (0x01, 0x800E)  # Gadgetbridge: EQ_UNK_ACK_1, args not decoded
+MULTIPOINT_RET = (0x02, 0x8010)
+MULTIPOINT_DEVICES_RET = (0x02, 0x8004)
+MULTIPOINT_ON_ACK = (0x01, 0x8011)
+MULTIPOINT_OFF_ACK = (0x01, 0x8010)
+MULTIPOINT_CONNECT_ACK = (0x01, 0x800B)
+MULTIPOINT_DISCONNECT_ACK = (0x01, 0x800C)
+_STATUS_ACKS = frozenset(
+    {MULTIPOINT_ON_ACK, MULTIPOINT_OFF_ACK, MULTIPOINT_CONNECT_ACK, MULTIPOINT_DISCONNECT_ACK}
+)
+
+# Gadgetbridge reads MULTIPOINT_RET as one u32 and treats exactly this value as "on"
+# (ShokzSupport.kt:634-639). It names no "off" value, so anything else stays unknown here.
+MULTIPOINT_ON_VALUE = 0x00010100
+MULTIPOINT_OFF_VALUES: frozenset[int] = frozenset()
+TOO_MANY_CONNECTED = 0x00000400  # MULTIPOINT_CONNECT_ACK status (ShokzSupport.kt:719-727)
 
 
 @dataclass(frozen=True)
@@ -35,9 +50,33 @@ class Equalizer:
 
 @dataclass(frozen=True)
 class Acknowledgement:
+    """A set-group reply. `status` is the leading u32 where Gadgetbridge reads one (0 = ok)."""
+
     group: int
     code: int
     args: bytes
+    status: int | None = None
+
+
+@dataclass(frozen=True)
+class MultipointStatus:
+    enabled: bool | None  # None: a value no source has named yet
+    raw: int
+
+
+@dataclass(frozen=True)
+class MultipointPeer:
+    index: int
+    address: str
+    connected: bool
+    name: str
+
+
+@dataclass(frozen=True)
+class MultipointDevices:
+    reported_count: int
+    peers: tuple[MultipointPeer, ...]
+    skipped: int  # entries dropped as implausible or truncated
 
 
 @dataclass(frozen=True)
@@ -46,7 +85,15 @@ class Unhandled:
     name: str | None
 
 
-type Decoded = Firmware | Battery | Equalizer | Acknowledgement | Unhandled
+type Decoded = (
+    Firmware
+    | Battery
+    | Equalizer
+    | Acknowledgement
+    | MultipointStatus
+    | MultipointDevices
+    | Unhandled
+)
 
 
 def decode(message: Message) -> Decoded:
@@ -63,7 +110,51 @@ def decode(message: Message) -> Decoded:
         return _equalizer(args, unprompted=True)
     if key == EQUALIZER_SET_ACK:
         return Acknowledgement(message.group, message.code, args)
+    if key in _STATUS_ACKS:
+        status = int.from_bytes(args[:4], "little") if len(args) >= 4 else None
+        return Acknowledgement(message.group, message.code, args, status)
+    if key == MULTIPOINT_RET:
+        return _multipoint_status(args)
+    if key == MULTIPOINT_DEVICES_RET:
+        return _multipoint_devices(args)
     return Unhandled(message, name_of(message.group, message.code))
+
+
+def _multipoint_status(args: bytes) -> MultipointStatus:
+    if len(args) < 4:
+        raise MalformedFrameError("MULTIPOINT_RET is shorter than 4 bytes")
+    raw = int.from_bytes(args[:4], "little")
+    if raw == MULTIPOINT_ON_VALUE:
+        return MultipointStatus(True, raw)
+    return MultipointStatus(False if raw in MULTIPOINT_OFF_VALUES else None, raw)
+
+
+def _multipoint_devices(args: bytes) -> MultipointDevices:
+    """Layout from ShokzSupport.kt:667-717: status, count, then per entry index, address
+    (reversed), connected, name length, name. The Pro 2 over-reports the count and can send a
+    garbled tail, so parsing stops at the data and drops entries that don't look real."""
+    if len(args) < 2:
+        raise MalformedFrameError("MULTIPOINT_DEVICES_RET is shorter than 2 bytes")
+    count = args[1]
+    pos, peers, parsed, skipped = 2, [], 0, 0
+    while parsed < count and len(args) - pos >= 9:
+        index = args[pos]
+        address_bytes = args[pos + 1 : pos + 7][::-1]
+        connected = args[pos + 7] == 1
+        name_len = args[pos + 8]
+        pos += 9
+        if len(args) - pos < name_len:
+            skipped += 1
+            break
+        name = args[pos : pos + name_len].split(b"\x00", 1)[0].decode("utf-8", "replace")
+        pos += name_len
+        parsed += 1
+        if not any(address_bytes) or not name:
+            skipped += 1
+            continue
+        address = ":".join(f"{b:02X}" for b in address_bytes)
+        peers.append(MultipointPeer(index, address, connected, name))
+    return MultipointDevices(count, tuple(peers), skipped)
 
 
 def _firmware(args: bytes) -> Firmware:

@@ -170,3 +170,16 @@ async def test_trace_records_traffic() -> None:
     assert trace.names() == ["tx", "rx", "reply"]
     assert trace.events[0]["hex"] == UPSTREAM_FIRMWARE_GET
     assert trace.events[2]["name"] == "FIRMWARE_RET"
+
+
+async def test_bad_crc_is_accepted_only_for_the_multipoint_device_list() -> None:
+    from shokzctl.protocol.commands import MULTIPOINT_DEVICES_GET
+
+    bad = bytearray(frame(0x02, 0x8004, bytes([0, 0])))
+    bad[10] ^= 0xFF  # corrupt the CRC field
+    headset = FakeHeadset(replies={(0x02, 0x0004): [bytes(bad)]})
+    session = await started(headset)
+    result = await session.query(MULTIPOINT_DEVICES_GET)
+    assert getattr(result, "reported_count", None) == 0
+    assert session.dropped_frames == 0
+    await session.close()

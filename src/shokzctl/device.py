@@ -58,6 +58,17 @@ def parse_device(text: str) -> str:
     )
 
 
+def parse_address(text: str) -> str:
+    """A Bluetooth address only, normalised to upper-case with colons."""
+    value = text.strip()
+    if not _ADDRESS.match(value):
+        raise ShokzError(
+            ErrorCategory.INVALID_INPUT,
+            f"Expected a Bluetooth address like AA:BB:CC:DD:EE:FF, got {text!r}.",
+        )
+    return re.sub(r"[_-]", ":", value).upper()
+
+
 def parse_adapter(text: str) -> str:
     value = text.strip()
     if not _ADAPTER_NAME.match(value):

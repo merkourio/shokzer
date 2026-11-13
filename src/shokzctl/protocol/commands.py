@@ -8,6 +8,7 @@ rest of the table is for naming what the headset sends.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -38,6 +39,17 @@ FIRMWARE_GET = Command("FIRMWARE_GET", GROUP_GET, 0x0002)
 BATTERY_GET = Command("BATTERY_GET", GROUP_GET, 0x0003)
 EQUALIZER_GET = Command("EQUALIZER_GET", GROUP_GET, 0x0008)
 EQUALIZER_SET = Command("EQUALIZER_SET", GROUP_SET, 0x000E)
+MULTIPOINT_GET = Command("MULTIPOINT_GET", GROUP_GET, 0x0010)
+MULTIPOINT_DEVICES_GET = Command("MULTIPOINT_DEVICES_GET", GROUP_GET, 0x0004)
+MULTIPOINT_ON = Command("MULTIPOINT_ON", GROUP_SET, 0x0011)
+MULTIPOINT_OFF = Command("MULTIPOINT_OFF", GROUP_SET, 0x0010)
+MULTIPOINT_CONNECT = Command("MULTIPOINT_CONNECT_REQ", GROUP_SET, 0x000B)
+MULTIPOINT_DISCONNECT = Command("MULTIPOINT_DISCONNECT_REQ", GROUP_SET, 0x000C)
+
+# Custom EQ: 5 gains, -5..5 each (Coord:109-117, 256-264). Band frequencies aren't known.
+CUSTOM_BANDS = 5
+CUSTOM_GAIN_MIN = -5
+CUSTOM_GAIN_MAX = 5
 
 # Every identity in Gadgetbridge's ShokzCommand.kt, for naming received messages.
 KNOWN_NAMES: dict[tuple[int, int], str] = {
@@ -150,3 +162,40 @@ def pro2_preset_request(preset: EqPreset) -> Message:
     if args is None:
         raise ValueError(f"no OpenRun Pro 2 evidence for preset {preset.name}")
     return EQUALIZER_SET.message(args)
+
+
+def custom_eq_request(bands: Sequence[int]) -> Message:
+    """EQUALIZER_SET for the custom EQ: code 0x05, five signed gains, two zero bytes."""
+    if len(bands) != CUSTOM_BANDS:
+        raise ValueError(f"custom EQ needs {CUSTOM_BANDS} gains, got {len(bands)}")
+    for gain in bands:
+        if not isinstance(gain, int) or not CUSTOM_GAIN_MIN <= gain <= CUSTOM_GAIN_MAX:
+            raise ValueError(f"custom EQ gains must be whole numbers from -5 to 5, got {gain!r}")
+    args = bytes([EqPreset.CUSTOM.value]) + bytes(g & 0xFF for g in bands) + b"\x00\x00"
+    return EQUALIZER_SET.message(args)
+
+
+def address_arg(address: str) -> bytes:
+    """6 address bytes, least significant first (ShokzSupport.kt:905-918)."""
+    parts = address.split(":")
+    if len(parts) != 6 or not all(len(p) == 2 for p in parts):
+        raise ValueError(f"not a Bluetooth address: {address!r}")
+    return bytes.fromhex("".join(parts))[::-1]
+
+
+def multipoint_on_request() -> Message:
+    return MULTIPOINT_ON.message()
+
+
+def multipoint_off_request(own_address: str) -> Message:
+    """MULTIPOINT_OFF carries the address of the device that asks, which stays connected
+    (ShokzSupport.kt:846-866)."""
+    return MULTIPOINT_OFF.message(address_arg(own_address))
+
+
+def multipoint_connect_request(address: str) -> Message:
+    return MULTIPOINT_CONNECT.message(address_arg(address))
+
+
+def multipoint_disconnect_request(address: str) -> Message:
+    return MULTIPOINT_DISCONNECT.message(address_arg(address))

@@ -20,6 +20,8 @@ from shokzctl.protocol.commands import (
     FIRMWARE_GET,
     PRO2_PRESET_ARGS,
     EqPreset,
+    address_arg,
+    custom_eq_request,
     firmware_request,
     pro2_preset_request,
 )
@@ -36,6 +38,8 @@ from shokzctl.protocol.responses import (
     Battery,
     Equalizer,
     Firmware,
+    MultipointDevices,
+    MultipointStatus,
     Unhandled,
     decode,
 )
@@ -277,3 +281,45 @@ def test_captured_equalizer_reply() -> None:
     assert decode(message) == Equalizer(
         code=1, preset=EqPreset.STANDARD, bands=None, unprompted=False
     )
+
+
+# --- custom EQ and multipoint codecs ---------------------------------------------------------
+
+
+def test_address_arg_is_reversed() -> None:
+    assert address_arg("11:22:33:44:55:66") == bytes.fromhex("665544332211")
+    with pytest.raises(ValueError, match="not a Bluetooth address"):
+        address_arg("11:22:33")
+
+
+def test_custom_eq_request_layout() -> None:
+    assert custom_eq_request([-5, 0, 5, -1, 1]).args == bytes.fromhex("05fb0005ff010000")
+
+
+def test_multipoint_status_decoding() -> None:
+    on = decode(Message(0x02, 0x8010, (0x00010100).to_bytes(4, "little")))
+    assert on == MultipointStatus(True, 0x00010100)
+    other = decode(Message(0x02, 0x8010, (0x00000100).to_bytes(4, "little")))
+    assert other == MultipointStatus(None, 0x00000100)
+
+
+def test_multipoint_devices_stops_at_the_data() -> None:
+    entry = bytes([0]) + bytes.fromhex("665544332211") + bytes([1, 6]) + b"Phone\x00"
+    devices = decode(Message(0x02, 0x8004, bytes([0, 8]) + entry + bytes([1, 2, 3])))
+    assert isinstance(devices, MultipointDevices)
+    assert [(p.address, p.name, p.connected) for p in devices.peers] == [
+        ("11:22:33:44:55:66", "Phone", True)
+    ]
+    assert devices.reported_count == 8
+
+
+def test_multipoint_name_stops_at_nul() -> None:
+    entry = bytes([0]) + bytes.fromhex("665544332211") + bytes([0, 8]) + b"Ab\x00junk!"
+    devices = decode(Message(0x02, 0x8004, bytes([0, 1]) + entry))
+    assert isinstance(devices, MultipointDevices)
+    assert devices.peers[0].name == "Ab"
+
+
+def test_status_acknowledgement() -> None:
+    ack = decode(Message(0x01, 0x8011, (0).to_bytes(4, "little")))
+    assert ack == Acknowledgement(0x01, 0x8011, bytes(4), 0)

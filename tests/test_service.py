@@ -11,8 +11,8 @@ from shokzctl.device import Selector, build_report
 from shokzctl.errors import ErrorCategory, ShokzError
 from shokzctl.lock import SessionLock
 from shokzctl.protocol.packets import Message
+from shokzctl.service import read_status
 from shokzctl.state import DiagnoseReport, ProtocolReadiness, Support
-from shokzctl.status import read_status
 from shokzctl.transport.bluez import BluezTree, Objects, Snapshot
 
 
@@ -29,7 +29,7 @@ def lock(tmp_path: Path) -> SessionLock:
 
 async def test_reads_firmware_battery_and_eq(lock: SessionLock) -> None:
     connector = FakeConnector()
-    result = await read_status(report_for(), connector, lock=lock)
+    result = await read_status(report_for(), connector, allow_unverified=True, lock=lock)
 
     assert connector.device_path == device_path(HEADSET)
     assert [m.code for m in connector.headset.sent] == [0x0002, 0x0003, 0x0008]
@@ -49,7 +49,9 @@ async def test_reads_firmware_battery_and_eq(lock: SessionLock) -> None:
 
 async def test_firmware_only(lock: SessionLock) -> None:
     connector = FakeConnector()
-    result = await read_status(report_for(), connector, queries=("firmware",), lock=lock)
+    result = await read_status(
+        report_for(), connector, queries=("firmware",), allow_unverified=True, lock=lock
+    )
     assert connector.headset.sent == [Message(0x02, 0x0002)]
     assert result.headset_battery.value is None
     assert result.active_eq.value is None
@@ -57,25 +59,28 @@ async def test_firmware_only(lock: SessionLock) -> None:
 
 async def test_firmware_is_always_first(lock: SessionLock) -> None:
     connector = FakeConnector()
-    await read_status(report_for(), connector, queries=("eq",), lock=lock)
+    await read_status(report_for(), connector, queries=("eq",), allow_unverified=True, lock=lock)
     assert [m.code for m in connector.headset.sent] == [0x0002, 0x0008]
 
 
 async def test_verified_firmware_enables_its_capabilities(
     lock: SessionLock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(caps, "VERIFIED", {TEST_FIRMWARE: frozenset({"firmware_query"})})
+    verified = frozenset({"firmware_query", "battery_query", "eq_read"})
+    monkeypatch.setattr(caps, "VERIFIED", {TEST_FIRMWARE: verified})
     result = await read_status(report_for(), FakeConnector(), lock=lock)
     assert result.identity.model_verified
     assert result.capabilities["firmware_query"] is Support.SUPPORTED
-    assert result.capabilities["eq_preset_write"] is Support.UNRESOLVED
+    assert result.capabilities["eq_write_vocal"] is Support.UNRESOLVED
     assert not any("verified" in w for w in result.warnings)
 
 
 async def test_unknown_eq_code_is_kept(lock: SessionLock) -> None:
     headset = FakeHeadset()
     headset.replies[(0x02, 0x0008)] = [frame(0x02, 0x8008, b"\x00\x06")]
-    result = await read_status(report_for(), FakeConnector(headset), lock=lock)
+    result = await read_status(
+        report_for(), FakeConnector(headset), allow_unverified=True, lock=lock
+    )
     assert result.active_eq.value == "unknown (0x06)"
 
 
@@ -91,7 +96,7 @@ async def test_refuses_before_touching_the_headset(
 ) -> None:
     connector = FakeConnector()
     with pytest.raises(ShokzError) as caught:
-        await read_status(report_for(objects), connector, lock=lock)
+        await read_status(report_for(objects), connector, allow_unverified=True, lock=lock)
     assert caught.value.category is category
     assert connector.device_path is None
 
@@ -106,7 +111,7 @@ async def test_refuses_a_device_with_another_name(lock: SessionLock) -> None:
     report = build_report(t, Selector(device=HEADSET))
     connector = FakeConnector()
     with pytest.raises(ShokzError) as caught:
-        await read_status(report, connector, lock=lock)
+        await read_status(report, connector, allow_unverified=True, lock=lock)
     assert caught.value.category is ErrorCategory.UNSUPPORTED
     assert connector.device_path is None
 
@@ -117,7 +122,7 @@ async def test_second_session_is_refused(lock: SessionLock) -> None:
     connector = FakeConnector()
     try:
         with pytest.raises(ShokzError, match="Another shokzctl session"):
-            await read_status(report_for(), connector, lock=lock)
+            await read_status(report_for(), connector, allow_unverified=True, lock=lock)
     finally:
         other.release()
     assert connector.device_path is None
@@ -128,7 +133,9 @@ async def test_timeout_cleans_up(lock: SessionLock) -> None:
     del headset.replies[(0x02, 0x0003)]
     connector = FakeConnector(headset)
     with pytest.raises(ShokzError) as caught:
-        await read_status(report_for(), connector, reply_timeout=0.05, lock=lock)
+        await read_status(
+            report_for(), connector, reply_timeout=0.05, allow_unverified=True, lock=lock
+        )
     assert caught.value.category is ErrorCategory.TIMEOUT
     assert "BATTERY_GET" in caught.value.message
     assert connector.closed
@@ -140,7 +147,7 @@ async def test_timeout_cleans_up(lock: SessionLock) -> None:
 async def test_open_failure_still_closes_connector(lock: SessionLock) -> None:
     connector = FakeConnector(error=ShokzError(ErrorCategory.UNAVAILABLE, "no"))
     with pytest.raises(ShokzError):
-        await read_status(report_for(), connector, lock=lock)
+        await read_status(report_for(), connector, allow_unverified=True, lock=lock)
     assert connector.closed
 
 
@@ -151,7 +158,9 @@ async def test_bluez_disconnect_request_fails_the_query(lock: SessionLock) -> No
         connector.on_disconnect_requested and connector.on_disconnect_requested()
     )
     with pytest.raises(ShokzError, match="BlueZ closed"):
-        await read_status(report_for(), connector, reply_timeout=1, lock=lock)
+        await read_status(
+            report_for(), connector, reply_timeout=1, allow_unverified=True, lock=lock
+        )
     assert connector.closed
 
 
@@ -163,3 +172,12 @@ def test_only_reads_are_verified_for_the_tested_firmware() -> None:
         "eq_read",
     }
     assert set(caps.capabilities("HU_R_47_20251023").values()) == {Support.UNRESOLVED}
+
+
+async def test_unverified_reads_are_skipped_with_a_warning(lock: SessionLock) -> None:
+    connector = FakeConnector()
+    result = await read_status(report_for(), connector, lock=lock)
+    assert connector.headset.sent == [Message(0x02, 0x0002)]
+    assert result.headset_battery.value is None
+    assert any("Skipped reading the battery level" in w for w in result.warnings)
+    assert any("Skipped reading the EQ" in w for w in result.warnings)

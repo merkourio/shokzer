@@ -18,6 +18,7 @@ from fakes import (
     headset_tree,
     tree,
 )
+from sim_headset import SimHeadset, SimState
 
 from shokzctl.cli import _watch, run
 from shokzctl.device import Selector
@@ -253,7 +254,9 @@ def status(bluez: Any, connector: Any, tmp_path: Any, *args: str) -> tuple[int, 
 
 def test_status_json(tmp_path: Any) -> None:
     connector = FakeConnector()
-    code, out, _ = status(FakeBluez(headset_tree(battery=60)), connector, tmp_path, "--json")
+    code, out, _ = status(
+        FakeBluez(headset_tree(battery=60)), connector, tmp_path, "--json", "--allow-unverified"
+    )
     assert code == ExitCode.OK
     data = json.loads(out)
     assert data["schema"] == STATUS_SCHEMA
@@ -267,7 +270,9 @@ def test_status_json(tmp_path: Any) -> None:
 
 
 def test_status_readable(tmp_path: Any) -> None:
-    code, out, _ = status(FakeBluez(headset_tree(battery=60)), FakeConnector(), tmp_path)
+    code, out, _ = status(
+        FakeBluez(headset_tree(battery=60)), FakeConnector(), tmp_path, "--allow-unverified"
+    )
     assert code == ExitCode.OK
     assert f"Firmware    {TEST_FIRMWARE} (headset FIRMWARE_GET)" in out
     assert "60 % (BlueZ Battery1), 60 % (headset BATTERY_GET)" in out
@@ -324,3 +329,107 @@ def test_status_trace_file(tmp_path: Any) -> None:
     ]
     assert lines[-1]["firmware"] == TEST_FIRMWARE
     assert HEADSET not in trace.read_text()
+
+
+# --- eq and multipoint commands ----------------------------------------------------------------
+
+
+def headset_cli(sim: SimHeadset, tmp_path: Any, *args: str) -> tuple[int, str, str]:
+    return status_like(FakeConnector(sim), tmp_path, *args)
+
+
+def status_like(connector: Any, tmp_path: Any, *args: str) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = run(
+        list(args),
+        connect=FakeBluez(headset_tree()),
+        open_connector=connector,
+        lock=SessionLock(tmp_path / "lock"),
+        out=out,
+        err=err,
+    )
+    return code, out.getvalue(), err.getvalue()
+
+
+def test_eq_get(tmp_path: Any) -> None:
+    code, out, _ = headset_cli(SimHeadset(), tmp_path, "eq", "get", "--allow-unverified")
+    assert code == ExitCode.OK
+    assert out.startswith("EQ  standard (headset EQUALIZER_GET)")
+
+
+def test_eq_set_requires_opt_in_on_unverified_firmware(tmp_path: Any) -> None:
+    sim = SimHeadset()
+    code, _, err = headset_cli(sim, tmp_path, "eq", "set", "vocal")
+    assert code == ExitCode.UNSUPPORTED
+    assert "--allow-unverified" in err
+    assert sim.writes() == []
+
+
+def test_eq_set_json(tmp_path: Any) -> None:
+    sim = SimHeadset()
+    code, out, _ = headset_cli(sim, tmp_path, "eq", "set", "vocal", "--allow-unverified", "--json")
+    assert code == ExitCode.OK
+    data = json.loads(out)
+    assert data["schema"] == "shokzctl.eq.set/1"
+    assert data["result"]["outcome"] == "confirmed"
+    assert data["result"]["readback"] == "vocal"
+    assert data["firmware"]["value"] == TEST_FIRMWARE
+
+
+def test_eq_set_readable(tmp_path: Any) -> None:
+    code, out, _ = headset_cli(SimHeadset(), tmp_path, "eq", "set", "bass", "--allow-unverified")
+    assert code == ExitCode.OK
+    assert out.splitlines()[0] == "EQ bass: confirmed"
+    assert "Not verified on this firmware" in out
+
+
+def test_eq_set_uncertain_exit_code(tmp_path: Any) -> None:
+    sim = SimHeadset(SimState(hang_up_after_write=True, ack_writes=False))
+    code, out, _ = headset_cli(sim, tmp_path, "eq", "set", "vocal", "--allow-unverified")
+    assert code == ExitCode.WRITE_UNCERTAIN
+    assert "read the current state first" in out
+
+
+def test_eq_set_not_applied_exit_code(tmp_path: Any) -> None:
+    sim = SimHeadset(SimState(apply_writes=False))
+    code, _, _ = headset_cli(sim, tmp_path, "eq", "set", "vocal", "--allow-unverified")
+    assert code == ExitCode.WRITE_NOT_APPLIED
+
+
+def test_eq_custom_accepts_negative_gains(tmp_path: Any) -> None:
+    sim = SimHeadset()
+    code, out, _ = headset_cli(
+        sim, tmp_path, "eq", "custom", "-2", "0", "1", "0", "-5", "--allow-unverified"
+    )
+    assert code == ExitCode.OK, out
+    assert "custom (-2, 0, +1, 0, -5): confirmed" in out
+
+
+def test_eq_custom_rejects_out_of_range_before_connecting(tmp_path: Any) -> None:
+    with pytest.raises(SystemExit) as caught:
+        headset_cli(SimHeadset(), tmp_path, "eq", "custom", "6", "0", "0", "0", "0")
+    assert caught.value.code == 2
+
+
+def test_multipoint_status_is_redacted(tmp_path: Any) -> None:
+    code, out, _ = headset_cli(SimHeadset(), tmp_path, "multipoint", "status", "--allow-unverified")
+    assert code == ExitCode.OK
+    assert "Multipoint  on" in out
+    assert "Pixel 10  11:XX:XX:XX:XX:66  not connected" in out
+    assert "this computer" in out
+    assert "11:22:33:44:55:66" not in out
+
+
+def test_multipoint_connect_rejects_bad_address(tmp_path: Any) -> None:
+    with pytest.raises(SystemExit):
+        headset_cli(SimHeadset(), tmp_path, "multipoint", "connect", "Pixel")
+
+
+def test_write_trace_records_outcome(tmp_path: Any) -> None:
+    trace = tmp_path / "t.jsonl"
+    headset_cli(
+        SimHeadset(), tmp_path, "eq", "set", "vocal", "--allow-unverified", "--trace", str(trace)
+    )
+    last = json.loads(trace.read_text().splitlines()[-1])
+    assert last["event"] == "result"
+    assert (last["outcome"], last["readback"]) == ("confirmed", "vocal")

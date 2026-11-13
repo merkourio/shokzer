@@ -25,6 +25,8 @@ class ExitCode(IntEnum):
     UNSUPPORTED = 6
     TIMEOUT = 7
     PROTOCOL = 8
+    WRITE_UNCERTAIN = 9
+    WRITE_NOT_APPLIED = 10
     INTERRUPTED = 130
 
 
