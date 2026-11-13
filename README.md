@@ -8,6 +8,8 @@ Every change is confirmed by reading the setting back from the headset, and noth
 
 *Shokzer is a community project, not affiliated with or endorsed by Shokz.*
 
+> **A hobby project, mostly AI-written.** I built Shokzer for my own headset, and it does what I need, so it isn't under active development. Most of the code was written with an AI assistant, so treat it as AI slop: use it at your own risk, and don't take it too seriously. Issues and pull requests are welcome, but there's no promise of a reply or a fix; I'll get to them when I get to them.
+
 ## Install
 
 You need the headset paired and connected in your Bluetooth settings first.
@@ -70,7 +72,7 @@ Shokzer talks to the headset over its Bluetooth management channel (RFCOMM, serv
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful contribution right now. Please follow the [code of conduct](CODE_OF_CONDUCT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful contribution, though replies may take a while. Please follow the [code of conduct](CODE_OF_CONDUCT.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

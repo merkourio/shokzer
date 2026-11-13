@@ -7,11 +7,11 @@ Please report security problems privately, not in a public issue:
 - On GitHub: **Security → Report a vulnerability** in this repository, or
 - By email: <hello@markos.pm>
 
-Say what's affected, how to reproduce it, and what an attacker could do with it. Shokzer is a one-person project, so expect a first reply within a week. Once there's a fix, it's released and the report is credited to you unless you'd rather stay anonymous.
+Say what's affected, how to reproduce it, and what an attacker could do with it. Shokzer is a hobby project without active development, so there's no promised response time; I'll get to it when I can. If there's a fix, the report is credited to you unless you'd rather stay anonymous.
 
 ## Supported versions
 
-Only the latest release gets fixes.
+Fixes, if any, only go into the latest release.
 
 ## What's in scope
 

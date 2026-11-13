@@ -1,6 +1,6 @@
 # Contributing
 
-Firmware reports, bug reports and pull requests are all welcome. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Security problems go through [SECURITY.md](SECURITY.md), not public issues.
+Firmware reports, bug reports and pull requests are all welcome. This is a hobby project without active development, so there's no promise of a reply, a review or a merge; I'll get to things when I get to them. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Security problems go through [SECURITY.md](SECURITY.md), not public issues.
 
 ## Firmware reports
 
