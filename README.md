@@ -8,7 +8,7 @@ Every change is confirmed by reading the setting back from the headset, and noth
 
 *Shokzer is a community project, not affiliated with or endorsed by Shokz.*
 
-> **A hobby project, mostly AI-written.** I built Shokzer for my own headset, and it does what I need, so it isn't under active development. Most of the code was written with an AI assistant, so treat it as AI slop: use it at your own risk, and don't take it too seriously. Issues and pull requests are welcome, but there's no promise of a reply or a fix; I'll get to them when I get to them.
+> **A hobby project, and AI slop.** I built Shokzer for my own headset, and it does what I need, so it isn't under active development. Most of the code was written with an AI assistant, so treat it as AI slop: use it at your own risk, and don't take it too seriously. Issues and pull requests are welcome, but there's no promise of a reply or a fix; I'll get to them when I get to them.
 
 ## Install
 
