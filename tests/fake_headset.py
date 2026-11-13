@@ -130,12 +130,15 @@ class FakeProfileBus:
         new_connection_device: str | None = None,
         errors: dict[str, tuple[str, str]] | None = None,
         hang: set[str] | None = None,
+        delay: dict[str, float] | None = None,
     ) -> None:
         self.owner = owner
         self.new_connection_sender = new_connection_sender or owner
         self.new_connection_device = new_connection_device
         self.errors = errors or {}
         self.hang = hang or set()
+        self.delay = delay or {}
+        self.events: list[str] = []
         self.handlers: list[Callable[[Message], Any]] = []
         self.calls: list[tuple[str, str, list[Any]]] = []
         self.handler_replies: list[Message | None] = []
@@ -159,6 +162,8 @@ class FakeProfileBus:
         self.calls.append((message.member, message.path or "", list(message.body)))
         if message.member in self.hang:
             await asyncio.sleep(3600)
+        if message.member in self.delay:
+            await asyncio.sleep(self.delay[message.member])
         if message.member in self.errors:
             name, text = self.errors[message.member]
             return Message.new_error(message, name, text)
@@ -175,6 +180,7 @@ class FakeProfileBus:
             )
         if message.member == "DisconnectProfile":
             self.deliver("RequestDisconnection", "o", [message.path])
+        self.events.append(f"{message.member}:done")
         return Message.new_method_return(message)
 
     def deliver(

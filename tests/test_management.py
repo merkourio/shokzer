@@ -163,3 +163,23 @@ async def test_refused_connection_suggests_closing_the_phone_app() -> None:
         await connector.open()
     assert "Shokz phone app" in (caught.value.hint or "")
     await connector.close()
+
+
+async def test_cancelled_connect_finishes_before_the_profile_is_released() -> None:
+    import asyncio
+
+    bus = FakeProfileBus(delay={"ConnectProfile": 0.2})
+    connector = RfcommConnector(bus, DEVICE_PATH)
+    opening = asyncio.create_task(connector.open())
+    await asyncio.sleep(0.05)
+    opening.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await opening
+    await connector.close()
+    # BlueZ answered the ConnectProfile before we asked it to let go of the profile.
+    assert bus.events.index("ConnectProfile:done") < bus.events.index("DisconnectProfile:done")
+    assert bus.members()[-2:] == ["DisconnectProfile", "UnregisterProfile"]
+    # The connection that arrived late was refused and its socket closed.
+    assert is_error(bus.handler_replies[0])
+    assert bus.peer is not None
+    assert fd_is_closed(bus.peer)

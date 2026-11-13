@@ -165,3 +165,27 @@ async def test_close_waits_for_running_session(tmp_path: Path) -> None:
     assert sim.closed
     with SessionLock(tmp_path / "lock"):
         pass  # released
+
+
+class SlowConnector(FakeConnector):
+    async def open(self) -> SimHeadset:
+        await asyncio.sleep(0.2)
+        result = await super().open()
+        assert isinstance(result, SimHeadset)
+        return result
+
+
+@pytest.mark.usefixtures("all_verified")
+async def test_close_lets_a_running_change_finish(tmp_path: Path) -> None:
+    sim = SimHeadset()
+    controller = Controller(
+        connect_bus=FakeBluez(headset_tree()),
+        open_connector=SlowConnector(sim),
+        lock_factory=lambda: SessionLock(tmp_path / "lock"),
+    )
+    await controller.start()
+    controller.spawn(controller.set_preset(EqPreset.VOCAL))
+    await asyncio.sleep(0.05)  # inside the slow connect
+    await controller.close()
+    assert sim.state.eq_code == 0x02
+    assert controller.state.message == "EQ set to Vocal"

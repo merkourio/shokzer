@@ -86,6 +86,7 @@ class RfcommConnector:
         self._registered = False
         self._connected = False
         self._handed_out = False
+        self._connect_call: asyncio.Future[Message] | None = None
         self._closed = False
         self.on_disconnect_requested: Callable[[], None] | None = None
 
@@ -105,17 +106,24 @@ class RfcommConnector:
         # From here BlueZ may hand over a socket even if the call then fails or times out,
         # so close() asks it to disconnect the profile in any case.
         self._connected = True
+        # BlueZ keeps a ConnectProfile in progress even if we stop waiting, and refuses new ones
+        # with br-connection-busy until it finishes (seen 2026-11-13 after closing the app
+        # mid-connect). So the call runs as its own task: if open() is cancelled or times
+        # out, close() waits for BlueZ to answer before releasing the profile.
+        self._connect_call = asyncio.ensure_future(
+            self._call(
+                BLUEZ,
+                self._device_path,
+                DEVICE,
+                "ConnectProfile",
+                "s",
+                [SHOKZ_SERVICE_UUID],
+                what="open the headset's management channel",
+            )
+        )
         try:
             async with asyncio.timeout(self._connect_timeout):
-                await self._call(
-                    BLUEZ,
-                    self._device_path,
-                    DEVICE,
-                    "ConnectProfile",
-                    "s",
-                    [SHOKZ_SERVICE_UUID],
-                    what="open the headset's management channel",
-                )
+                await asyncio.shield(self._connect_call)
                 fd = await self._fd
         except TimeoutError:
             raise ShokzError(
@@ -137,7 +145,13 @@ class RfcommConnector:
             return
         self._closed = True
         if not self._fd.done():
-            self._fd.cancel()
+            self._fd.cancel()  # a NewConnection arriving now is refused, which ends the call
+        call = self._connect_call
+        if call is not None and not call.done():
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(asyncio.shield(call), timeout=self._connect_timeout)
+        if call is not None and call.done() and not call.cancelled():
+            call.exception()  # retrieved here so it isn't logged as unhandled
         elif not self._fd.cancelled() and not self._handed_out:
             _close_fds([self._fd.result()])
         if self._connected:

@@ -17,7 +17,7 @@ import pytest
 from fakes import OWNER, headset_tree
 from sim_headset import PHONE, THIS_COMPUTER
 
-from shokzctl.capabilities import PROPRIETARY_FEATURES, capabilities
+from shokzctl.capabilities import PROPRIETARY_FEATURES
 from shokzctl.device import Selector, build_report
 from shokzctl.protocol.commands import EqPreset
 from shokzctl.protocol.responses import (
@@ -71,9 +71,16 @@ def base_state(**changes: Any) -> ViewState:
         firmware=FIRMWARE,
         headset_battery=60,
         eq=Equalizer(1, EqPreset.STANDARD, None, False),
-        capabilities=capabilities(FIRMWARE),
+        capabilities=reads_only(),
     )
     return dataclasses.replace(state, **changes)
+
+
+def reads_only() -> dict[str, Support]:
+    reads = {"firmware_query", "battery_query", "eq_read"}
+    return {
+        f: Support.SUPPORTED if f in reads else Support.UNRESOLVED for f in PROPRIETARY_FEATURES
+    }
 
 
 def all_supported() -> dict[str, Support]:

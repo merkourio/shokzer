@@ -7,6 +7,7 @@ Bluetooth I/O happens in tasks on the same thread and never blocks drawing.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 import gi
@@ -23,6 +24,8 @@ from ..state import Connection  # noqa: E402
 from .controller import PRESET_LABELS, Controller, ViewState  # noqa: E402
 
 WINDOW_TITLE = "OpenRun Pro 2"
+SHUTDOWN_TIMEOUT = 50.0  # backstop above Controller's CLOSE_GRACE plus cleanup
+log = logging.getLogger(__name__)
 _PRESETS = (EqPreset.STANDARD, EqPreset.VOCAL, EqPreset.BASS, EqPreset.TREBLE, EqPreset.CUSTOM)
 _FEATURE = {
     EqPreset.STANDARD: "eq_write_standard",
@@ -302,8 +305,14 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         self.set_visible(False)
 
         async def shut_down() -> None:
-            await self._controller.close()
-            self.close()
+            try:
+                await asyncio.wait_for(self._controller.close(), timeout=SHUTDOWN_TIMEOUT)
+            except BaseException:
+                # Never leave a hidden window keeping the app alive; the process exiting also
+                # makes BlueZ drop our profile and its connection.
+                log.exception("Shutting down didn't finish cleanly")
+            finally:
+                self.close()
 
         self._shutdown = asyncio.ensure_future(shut_down())
         return True  # stay alive until sessions are closed and handed back to BlueZ

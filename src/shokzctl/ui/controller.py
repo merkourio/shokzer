@@ -35,6 +35,8 @@ from ..service import (
 from ..state import Connection, DiagnoseReport, Support
 from ..transport.bluez import BluezObserver, ConnectionFactory
 
+CLOSE_GRACE = 30.0  # longest action: connect (15 s) plus peer polling (8 s)
+
 PRESET_LABELS = {
     EqPreset.STANDARD: "Standard",
     EqPreset.VOCAL: "Vocal",
@@ -125,10 +127,13 @@ class Controller:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._watcher
         tasks = [t for t in self._tasks if t is not asyncio.current_task()]
-        for task in tasks:
-            task.cancel()
-        # Let cancelled sessions run their cleanup (close the channel, hand it back to BlueZ).
-        await asyncio.gather(*tasks, return_exceptions=True)
+        # Let a running session finish rather than cancel it: a cancelled write has an
+        # unknown outcome, and a cancelled connect leaves BlueZ busy. Cancel only stragglers.
+        if tasks:
+            _, pending = await asyncio.wait(tasks, timeout=CLOSE_GRACE)
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
         if self._observer is not None:
             await self._observer.close()
 

@@ -7,6 +7,7 @@ session cleanup before the app exits.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 from typing import Any
@@ -75,5 +76,68 @@ def test_app_reads_headset_and_shuts_down_cleanly(
     assert seen["eq"] is not None
     assert seen["window"] == "OpenRun Pro 2"
     assert sim.closed
+    with SessionLock(tmp_path / "lock"):
+        pass
+
+
+class SlowConnector(FakeConnector):
+    """Opening takes a while, like ConnectProfile on real hardware."""
+
+    async def open(self) -> Any:
+        await asyncio.sleep(1.5)
+        return await super().open()
+
+
+def test_closing_during_a_change_still_exits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(caps, "VERIFIED", {TEST_FIRMWARE: frozenset(PROPRIETARY_FEATURES)})
+    from gi.events import GLibEventLoopPolicy
+    from gi.repository import GLib
+
+    from shokzctl.protocol.commands import EqPreset
+    from shokzctl.ui.app import Application
+    from shokzctl.ui.controller import Controller
+
+    sim = SimHeadset()
+    connector = SlowConnector(sim)
+
+    def controller() -> Controller:
+        return Controller(
+            connect_bus=FakeBluez(headset_tree(battery=60)),
+            open_connector=connector,
+            lock_factory=lambda: SessionLock(tmp_path / "lock"),
+        )
+
+    seen: dict[str, Any] = {}
+    app = Application(controller, application_id="org.example.ShokzctlTest2")
+
+    def start_change() -> bool:
+        state = app.controller.state if app.controller else None
+        if state is None or not state.firmware or state.busy is not None:
+            return True
+        app.controller.spawn(app.controller.set_preset(EqPreset.TREBLE))
+        GLib.timeout_add(200, close_now)
+        return False
+
+    def close_now() -> bool:
+        seen["closing"] = True
+        app.get_active_window().close()
+        return False
+
+    def give_up() -> bool:
+        seen["timeout"] = True
+        app.quit()
+        return False
+
+    GLib.timeout_add(50, start_change)
+    GLib.timeout_add_seconds(15, give_up)
+    with GLibEventLoopPolicy():
+        status = app.run([])
+
+    assert seen.get("closing")
+    assert "timeout" not in seen, "the app didn't exit after its window closed"
+    assert status == 0
+    assert connector.closed
     with SessionLock(tmp_path / "lock"):
         pass
