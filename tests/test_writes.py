@@ -128,7 +128,7 @@ async def test_verified_write_needs_no_opt_in(
     assert result.verified
 
 
-@pytest.mark.parametrize("preset", [EqPreset.CLASSIC, EqPreset.VOLUME_BOOST, EqPreset.SWIMMING])
+@pytest.mark.parametrize("preset", [EqPreset.VOLUME_BOOST, EqPreset.SWIMMING])
 async def test_presets_without_pro2_bytes_are_refused(sim: SimHeadset, preset: EqPreset) -> None:
     headset = await open_headset(sim)
     with pytest.raises(ShokzError) as caught:
@@ -138,6 +138,43 @@ async def test_presets_without_pro2_bytes_are_refused(sim: SimHeadset, preset: E
 
 
 # --- custom EQ -------------------------------------------------------------------------------
+
+
+async def test_classic_then_hybrid_is_read_back_and_not_hardware_verified(sim: SimHeadset) -> None:
+    headset = await open_headset(sim)
+    classic = await headset.set_preset(EqPreset.CLASSIC)
+    assert classic.outcome is WriteOutcome.CONFIRMED
+    assert (classic.previous, classic.readback) == ("standard", "classic")
+    assert not classic.verified
+    assert eq_writes(sim)[0].args == bytes.fromhex("0800000000000000")
+    assert [(m.group, m.code) for m in sim.sent] == [(2, 8), (1, 14), (2, 8)]
+    already = await headset.set_preset(EqPreset.CLASSIC)
+    assert already.outcome is WriteOutcome.ALREADY_SET
+    assert len(eq_writes(sim)) == 1
+    hybrid = await headset.set_preset(EqPreset.STANDARD)
+    assert hybrid.outcome is WriteOutcome.CONFIRMED
+    assert (hybrid.previous, hybrid.readback) == ("classic", "standard")
+    assert eq_writes(sim)[1].args == bytes.fromhex("0100000000000000")
+
+
+@pytest.mark.parametrize("ack", [True, False])
+async def test_classic_not_applied_is_never_resent(sim: SimHeadset, ack: bool) -> None:
+    sim.state.apply_writes = False
+    sim.state.ack_writes = ack
+    headset = await open_headset(sim)
+    result = await headset.set_preset(EqPreset.CLASSIC)
+    assert result.outcome is (WriteOutcome.NOT_APPLIED if ack else WriteOutcome.UNCERTAIN)
+    assert result.readback == "standard"
+    assert len(eq_writes(sim)) == 1
+
+
+def test_classic_is_verified_only_on_observed_firmware() -> None:
+    features = caps.capabilities("BOS_HU_R_47_20251023")
+    from shokzer.state import Support
+
+    assert features["eq_write_standard"] is Support.SUPPORTED
+    assert features["eq_write_classic"] is Support.SUPPORTED
+    assert caps.capabilities("TEST_FW_1")["eq_write_classic"] is Support.UNTESTED
 
 
 async def test_custom_eq_is_confirmed_by_band_readback(sim: SimHeadset) -> None:

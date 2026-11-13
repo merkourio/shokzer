@@ -19,6 +19,7 @@ PROPRIETARY_FEATURES = (
     "battery_query",
     "eq_read",
     "eq_write_standard",
+    "eq_write_classic",
     "eq_write_vocal",
     "eq_write_bass",
     "eq_write_treble",
@@ -33,6 +34,7 @@ DESCRIPTIONS = {
     "battery_query": "reading the battery level",
     "eq_read": "reading the EQ",
     "eq_write_standard": "setting the Standard EQ",
+    "eq_write_classic": "setting Classic (bone conduction only)",
     "eq_write_vocal": "setting the Vocal EQ",
     "eq_write_bass": "setting the Bass Boost EQ",
     "eq_write_treble": "setting the Treble Boost EQ",
@@ -52,6 +54,9 @@ VERIFIED: Mapping[str, frozenset[str]] = {
             "battery_query",
             "eq_read",
             "eq_write_standard",
+            # 2026-11-13 Classic -> Standard: acknowledged and independently read back.
+            # Verifies mode control, not acoustic isolation; see docs/test-results.md.
+            "eq_write_classic",
             "eq_write_vocal",
             "eq_write_bass",
             "eq_write_treble",
@@ -89,6 +94,7 @@ def is_verified(feature: str, firmware: str | None) -> bool:
 
 _PRESET_FEATURES = {
     EqPreset.STANDARD: "eq_write_standard",
+    EqPreset.CLASSIC: "eq_write_classic",
     EqPreset.VOCAL: "eq_write_vocal",
     EqPreset.BASS: "eq_write_bass",
     EqPreset.TREBLE: "eq_write_treble",
@@ -97,5 +103,5 @@ _PRESET_FEATURES = {
 
 
 def preset_feature(preset: EqPreset) -> str | None:
-    """None for presets without Pro 2 evidence (Classic, Volume Boost, Swimming)."""
+    """None for presets without enabled Pro 2 evidence (Volume Boost, Swimming)."""
     return _PRESET_FEATURES.get(preset)

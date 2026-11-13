@@ -21,15 +21,23 @@ from .. import FIRMWARE_REPORT_URL  # noqa: E402
 from ..output import redact_address  # noqa: E402
 from ..protocol.commands import CUSTOM_BANDS, CUSTOM_GAIN_MAX, CUSTOM_GAIN_MIN, EqPreset  # noqa: E402
 from ..service import multipoint_label  # noqa: E402
-from ..state import Connection  # noqa: E402
+from ..state import Connection, Support  # noqa: E402
 from .controller import PRESET_LABELS, Controller, ViewState  # noqa: E402
 
 WINDOW_TITLE = "OpenRun Pro 2"
 SHUTDOWN_TIMEOUT = 50.0  # backstop above Controller's CLOSE_GRACE plus cleanup
 log = logging.getLogger(__name__)
-_PRESETS = (EqPreset.STANDARD, EqPreset.VOCAL, EqPreset.BASS, EqPreset.TREBLE, EqPreset.CUSTOM)
+_PRESETS = (
+    EqPreset.STANDARD,
+    EqPreset.CLASSIC,
+    EqPreset.VOCAL,
+    EqPreset.BASS,
+    EqPreset.TREBLE,
+    EqPreset.CUSTOM,
+)
 _FEATURE = {
     EqPreset.STANDARD: "eq_write_standard",
+    EqPreset.CLASSIC: "eq_write_classic",
     EqPreset.VOCAL: "eq_write_vocal",
     EqPreset.BASS: "eq_write_bass",
     EqPreset.TREBLE: "eq_write_treble",
@@ -166,7 +174,9 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
         untested = state.firmware is not None and not state.firmware_tested
         self._banner.set_revealed(untested)
         if untested:
-            self._banner.set_title("This firmware hasn't been tested yet. Tell us how it goes.")
+            self._banner.set_title(
+                "Some features are untested on this firmware. Tell us how it goes."
+            )
 
         if state.report is None:
             self._missing.set_title("No headset")
@@ -222,6 +232,12 @@ class MainWindow(Adw.ApplicationWindow):  # type: ignore[misc]
             subtitle = None
             if pending:
                 subtitle = "Changing…"
+            elif preset is EqPreset.STANDARD:
+                subtitle = "Bone and air conduction"
+            elif preset is EqPreset.CLASSIC:
+                subtitle = "Air speaker off"
+                if state.capabilities.get("eq_write_classic") is not Support.SUPPORTED:
+                    subtitle += " · Not hardware-verified here"
             elif preset is EqPreset.CUSTOM and state.eq is not None and state.eq.bands:
                 subtitle = " ".join(f"{b:+d}" if b else "0" for b in state.eq.bands)
             row.set_subtitle(subtitle or "")

@@ -1,5 +1,34 @@
 # Hardware test plan — everything after M3
 
+## Classic / Hybrid (added and run 2026-11-13)
+
+**Completed at 14:22 UTC with owner approval:** Classic and Standard acknowledged/read back;
+original Standard restored. See test-results.md. Procedure retained for future firmware tests;
+get the owner's approval before any new hardware behavior. Source: Gadgetbridge
+`37f76243b7e78632ea3ea338f59f8318ecf9d417`, `ShokzCoordinator.kt:95-98`,
+`ShokzOpenRunPro2Coordinator.kt:43-47,65`, `ShokzArguments.kt:32` (paths in protocol analysis).
+
+The new write is group `0x01`, code `0x000e`, arguments `08 00 00 00 00 00 00 00`,
+wrapped by the existing length/CRC encoder. Hybrid is **the existing Standard preset**,
+arguments `01 00 00 00 00 00 00 00`, not another opcode or a separate driver toggle.
+Each action first reads EQ, sends at most one write, then reads EQ back; no retries of writes.
+
+After approval, close competing settings apps and use low-volume media playback:
+
+1. Record firmware and original EQ. Preserve custom bands if Custom is active; if the original
+   mode cannot be restored by an evidenced command, stop before changing it.
+2. `shokzer eq set classic --trace local/traces/classic-test.jsonl`; expect `classic` readback.
+   Stop on unexpected replies, loudness, resets, disconnects or audio disruption.
+3. `shokzer eq set hybrid`; expect canonical `standard` readback.
+4. Restore the original EQ and confirm it. Do not assume Hybrid restores a prior custom EQ.
+5. Separately test reconnect/power-cycle persistence and GUI state if desired. Calls/prompts
+   are outside this first media-playback test. Record results and limitations in test-results.md.
+
+Mode readback proves the selected mode, not electrical shutdown or acoustic isolation of a
+particular transducer. Only add `eq_write_classic` to VERIFIED after the real test passes.
+
+## Historical A–G plan
+
 The commands below are as run on 2026-11-13. Since then `--allow-unverified` has been removed (every feature works on any firmware) and the tool was renamed from `shokzctl` to `shokzer`.
 
 **Run 2026-11-13:** A-F done, results in `test-results.md`. Still open: A7 (GNOME reconnect), D5 (suspend/resume), RPM removal (F), G (Android comparison). Everything that passed is in `VERIFIED`.

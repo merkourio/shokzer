@@ -4,8 +4,8 @@ The controller follows BlueZ passively the whole time and opens a management ses
 for each action (refresh or a change), then closes it. That keeps the channel and the
 session lock free for the CLI and the phone app between actions.
 
-Only features verified for the headset's firmware are offered; unverified ones are shown
-as unavailable and can only be tried from the CLI.
+Source-supported features are offered on untested firmware too; hardware verification is
+tracked separately and the view shows a notice for untested features.
 """
 
 from __future__ import annotations
@@ -38,7 +38,8 @@ from ..transport.bluez import BluezObserver, ConnectionFactory
 CLOSE_GRACE = 30.0  # longest action: connect (15 s) plus peer polling (8 s)
 
 PRESET_LABELS = {
-    EqPreset.STANDARD: "Standard",
+    EqPreset.STANDARD: "Standard (Hybrid)",
+    EqPreset.CLASSIC: "Classic (Bone only)",
     EqPreset.VOCAL: "Vocal",
     EqPreset.BASS: "Bass Boost",
     EqPreset.TREBLE: "Treble Boost",

@@ -1,5 +1,30 @@
 # Test results
 
+## 2026-11-13 — Classic / Hybrid hardware test (14:22 UTC)
+
+- **Code:** local uncommitted Classic/Hybrid changes atop `0033a55`; Python 3.14.10.
+- **Approval:** owner approved the exact `0x01/0x000e` arguments and low-volume test with
+  phone settings app closed. No power cycling, call testing or audio-stack changes.
+- **Firmware:** `BOS_HU_R_47_20251023`; battery 40%; initial EQ `standard`.
+- **Classic:** arguments `08 00 00 00 00 00 00 00` sent once; acknowledgement `00 00 00 00`;
+  EQ readback arguments `00 08 00 00 00 00 00 00`. Command exited 0, confirmed.
+- **Restore after about ten seconds:** `eq set hybrid` sent Standard arguments
+  `01 00 00 00 00 00 00 00` once; acknowledged and read back `standard`.
+  A separate `eq get` also confirmed code 1. Original setting restored.
+- **Raw traces (local, not committed):** `local/traces/2026-11-13-classic-before.jsonl`,
+  `2026-11-13-classic-write.jsonl`, `2026-11-13-classic-restore.jsonl`, and
+  `2026-11-13-classic-final.jsonl` in the same directory.
+- **Result:** mode switching verified; `eq_write_classic` added to VERIFIED for this firmware.
+  No protocol errors observed. After an additional owner-requested Classic / Standard
+  listening comparison, the owner reported "Works perfectly." Standard was restored and
+  confirmed again. This is subjective listening evidence, not an isolation measurement.
+  Electrical driver shutdown, acoustic isolation, calls, persistence and the physical GUI
+  were not verified by this test.
+- **Post-test checks:** 244 offline tests passed, 9 opt-in tests skipped; Ruff lint/format,
+  strict mypy and diff whitespace checks passed. All 7 headless GUI tests passed on Broadway
+  `:38` (348 dependency deprecation warnings). An initial GUI rerun on `:37` failed because
+  its port was occupied; rerunning on a fresh display resolved it without a code change.
+
 Each entry: date, application commit, what ran, outcome, and limits. Raw logs stay outside Git.
 
 ## 2026-11-13 — passive diagnose on Fedora (M2)
@@ -111,3 +136,22 @@ Run in fresh podman containers from the committed tree (`88ae4ff`), so nothing f
 | shellcheck | `install.sh`, `packaging/build-rpm.sh` | Clean |
 
 Not run yet: the GitHub Actions workflows themselves (they run on the first push and tag) and a COPR build.
+# Classic / Hybrid addition — offline validation, 2026-11-13
+
+No real headset commands were sent for this addition. Classic remains absent from VERIFIED.
+Source-derived bytes and the pending owner-approved hardware procedure are in
+protocol-analysis.md and hardware-test-plan.md.
+
+- Ruff lint and formatting check: passed.
+- `python -m mypy`: passed (24 source files).
+- `python -m pytest`: 242 passed, 9 skipped (7 opt-in GUI, 2 opt-in hardware).
+- Headless Broadway `SHOKZ_GUI=1 python -m pytest tests/gui`: 7 passed. GTK/Python event-loop
+  deprecation warnings remain (349 warnings). No D-Bus/headset access; simulated/stub state.
+- Inspected the rendered Classic state: Hybrid and Classic labels, confirmed selection,
+  explicit unverified notice, and native grouped radio controls. Screenshot is local only.
+- Simulated tests cover exact source-derived arguments, Classic → Standard round trip,
+  already-set no-write behavior, read-before/write-once/readback sequence, unapplied/missing
+  acknowledgement outcomes, CLI Hybrid alias with canonical Standard JSON, controller state,
+  and capability status remaining untested on the otherwise verified firmware.
+
+---

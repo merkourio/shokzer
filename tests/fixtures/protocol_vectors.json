@@ -16,15 +16,19 @@
     "source": "local/traces/2026-11-13-m3-2-all-reads.jsonl (outside Git); contains no identifiers",
     "firmware_ret": "a55a4f00010100004b00c7c80100000043000000020000000400000002000000030000000400000002800000040000002300000000424f535f48555f525f34375f32303235313032330000000000000000000000000000",
     "battery_ret": "a55a3000010100002c00fd0d010000002400000002000000040000000200000003000000040000000380000004000000040000000005ff00",
-    "equalizer_ret": "a55a3400010100003000b218010000002800000002000000040000000200000003000000040000000880000004000000080000000001000000000000"
+    "equalizer_ret": "a55a3400010100003000b218010000002800000002000000040000000200000003000000040000000880000004000000080000000001000000000000",
+    "classic_source": "local/traces/2026-11-13-classic-write.jsonl, 14:22 UTC, local changes atop 0033a55, same firmware; EQ-only response reviewed: no identifiers",
+    "classic_ret": "a55a34000101000030002b18010000002800000002000000040000000200000003000000040000000880000004000000080000000008000000000000"
   },
   "pro2_equalizer_set_args": {
-    "kind": "pinned source fact, model-specific; upstream says captured from the official app on a real OpenRun Pro 2",
+    "kind": "pinned source fact; Standard/Vocal/Bass/Treble are model-specific official-app captures per upstream; Classic is shared-source-derived, subsequently sent once and acknowledged/read back locally on BOS_HU_R_47_20251023 (2026-11-13 14:22 UTC)",
     "source": "app/src/main/java/nodomain/freeyourgadget/gadgetbridge/devices/shokz/ShokzOpenRunPro2Coordinator.kt:49-65",
     "STANDARD": "0100000000000000",
     "VOCAL": "02fafe0405010000",
     "BASS": "0309f90000000000",
-    "TREBLE": "0400000104050000"
+    "TREBLE": "0400000104050000",
+    "CLASSIC": "0800000000000000",
+    "classic_source": "ShokzCoordinator.kt:95-98 (shared encoder), ShokzOpenRunPro2Coordinator.kt:43-47,65 (enablement and fallback), service/devices/shokz/ShokzArguments.kt:32 (mode ID); same pinned commit"
   },
   "fragmented_device_list": {
     "kind": "hardware capture, sanitized: device addresses and names replaced, CRC recomputed; fragment headers, sizes and split point as captured",

@@ -32,7 +32,7 @@ from .transport.bluez import BluezObserver, ConnectionFactory, connect_system_bu
 from .transport.management import open_connector
 
 DEFAULT_TIMEOUT = 5.0
-PRESET_NAMES = tuple(p.name.lower() for p in WRITABLE_PRESETS)
+PRESET_NAMES = (*tuple(p.name.lower() for p in WRITABLE_PRESETS), "hybrid")
 
 _WRITE_EXIT_CODES = {
     WriteOutcome.CONFIRMED: ExitCode.OK,
@@ -129,7 +129,11 @@ def build_parser() -> argparse.ArgumentParser:
             "confirmed only when the headset reads back the new preset. Never resent."
         ),
     )
-    eq_set.add_argument("preset", choices=PRESET_NAMES, help="Preset to switch to.")
+    eq_set.add_argument(
+        "preset",
+        choices=PRESET_NAMES,
+        help="Classic: bone only; hybrid: alias for standard.",
+    )
     eq_custom = eq_actions.add_parser(
         "custom",
         help="Switch to the custom EQ with five band gains.",
@@ -313,7 +317,8 @@ async def _headset_command(
 async def _write(args: argparse.Namespace, headset: Headset) -> WriteResult:
     match (args.command, args.action):
         case ("eq", "set"):
-            return await headset.set_preset(EqPreset[args.preset.upper()])
+            preset = "standard" if args.preset == "hybrid" else args.preset
+            return await headset.set_preset(EqPreset[preset.upper()])
         case ("eq", "custom"):
             return await headset.set_custom(args.bands)
         case ("multipoint", "on" | "off"):
