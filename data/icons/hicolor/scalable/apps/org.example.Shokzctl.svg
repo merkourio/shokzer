@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3584e4"/>
+      <stop offset="1" stop-color="#1c71d8"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="12" width="112" height="104" rx="24" fill="url(#bg)"/>
+  <rect x="8" y="104" width="112" height="12" rx="6" fill="#1a5fb4" opacity="0.6"/>
+  <!-- wrap-around band behind the head -->
+  <path d="M30 70 C30 34 98 34 98 70" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+  <!-- bone-conduction pads in front of the ears -->
+  <rect x="21" y="62" width="20" height="30" rx="10" fill="#ffffff"/>
+  <rect x="87" y="62" width="20" height="30" rx="10" fill="#ffffff"/>
+  <!-- EQ bars -->
+  <rect x="51" y="74" width="6" height="18" rx="3" fill="#99c1f1"/>
+  <rect x="61" y="64" width="6" height="28" rx="3" fill="#ffffff"/>
+  <rect x="71" y="70" width="6" height="22" rx="3" fill="#99c1f1"/>
+</svg>

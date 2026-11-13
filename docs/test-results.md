@@ -57,3 +57,10 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 - The first channel open took 2.08 s, later ones about 0.5 s. Not explained (likely SDP caching).
 - Playback wasn't running during the runs, so "no dropout" is about the link, not about audio under load.
 - Not tested: the phone app connected at the same time, a disconnect mid-query, or BlueZ restarting during a session.
+
+## 2026-11-13 — EQ writes, custom EQ, multipoint, GUI and packaging (offline only)
+
+- **Commits:** `8f1d5ee` (EQ and multipoint commands), `911643b` (GTK app), and the packaging commit after it.
+- **Checks:** `pytest` 215 passed (7 skipped: hardware and GUI opt-ins); ruff and mypy strict clean. GUI tests on a headless Broadway display: 5 passed (four rendered window states, plus one full app run against a simulated headset with clean shutdown). The same 215 tests pass with Fedora's `dbus-fast` 2.45.1 against the installed wheel.
+- **Packaging:** wheel and sdist build; fresh install into a new venv runs `shokzctl --version` and passive `diagnose`, and the GUI modules import. `desktop-file-validate` passes; `appstreamcli validate --no-net` passes with the missing homepage downgraded to info. The RPM isn't built yet: it needs `rpm-build` and the spec's build dependencies installed with sudo.
+- **Not hardware evidence.** Nothing new was sent to the headset. The write behaviour is tested against `tests/sim_headset.py`, which models acknowledgements, slow changes, unapplied changes and lost channels; none of that is observed behaviour.

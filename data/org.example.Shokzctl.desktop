@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Shokz Headset
+GenericName=Headset Settings
+Comment=Change the EQ and multipoint settings of a Shokz OpenRun Pro 2
+Exec=shokzctl-gui
+Icon=org.example.Shokzctl
+Terminal=false
+Categories=GTK;Settings;HardwareSettings;
+Keywords=bluetooth;headphones;headset;equalizer;eq;bone conduction;openrun;
+StartupNotify=true

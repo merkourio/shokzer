@@ -27,5 +27,8 @@ What has been observed on real hardware. A mock or source fact is never a row he
 | Firmware query | Pass | `test-results.md` M3 |
 | Battery query | Pass (60 %, matches BlueZ) | `test-results.md` M3 |
 | EQ read | Pass (Standard, matches the app) | `test-results.md` M3 |
-| EQ preset write | Not tested | |
-| Custom EQ, multipoint | Not tested | |
+| EQ preset write (Standard, Vocal, Bass, Treble) | Built, not tested on hardware | `hardware-test-plan.md` A |
+| Custom EQ | Built, not tested on hardware | `hardware-test-plan.md` B |
+| Multipoint status, on/off, peers | Built, not tested on hardware | `hardware-test-plan.md` C |
+| GUI against the real headset | Not tested | `hardware-test-plan.md` E |
+| Local RPM install/remove | Not built | `hardware-test-plan.md` F |

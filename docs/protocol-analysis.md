@@ -68,10 +68,13 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 | Vocal preset | **Pro 2** | args `02 fa fe 04 05 01 00 00` (differs from other models: Coord:100-101) | Pro2:55-56 | 2, 3, 4 | Same |
 | Bass Boost preset | **Pro 2** | args `03 09 f9 00 00 00 00 00` | Pro2:58-59, 33-36 | 2, 3, 4 | Same |
 | Treble Boost preset | **Pro 2** | args `04 00 00 01 04 05 00 00` | Pro2:61-62, 33-36 | 2, 3, 4 | Same |
-| Custom EQ | **Pro 2** flag; encoding shared | args `05 b1 b2 b3 b4 b5 00 00`, each band −5…5 | Pro2:38-41; Coord:109-117, 256-264; Args:29 | 2, 3 (flag) | Band frequencies, step units, slots, persistence. Not implemented |
+| Custom EQ | **Pro 2** flag; encoding shared | args `05 b1 b2 b3 b4 b5 00 00`, each band −5…5 | Pro2:38-41; Coord:109-117, 256-264; Args:29 | 2, 3 (flag), 4 | Implemented (`eq custom`), unverified. Band frequencies, step units, slots, persistence open. Writing it overwrites the stored custom profile |
 | Classic / Volume Boost | **Pro 2** flag | codes `0x08` / `0x0a`, args code + seven `00` (shared default, not Pro 2-specific bytes) | Pro2:43-47; Coord:81-98; Args:32-33 | 2, 3 (flag only) | Pro 2 args were not captured separately. Out of scope until evidenced |
-| Multipoint status | Shared | `0x02/0x0010` → `0x02/0x8010`: u32, `0x00010100` = on | Cmd:61-62; Support:634-639 | 2 | Not implemented. M7b |
-| Multipoint peer list | Shared, Pro 2 quirk | `0x02/0x0004` → `0x02/0x8004` (bad CRC with >2 peers) | Cmd:47; Support:155-171, 667-718 | 2, 3 (quirk) | Not implemented. M7b |
+| Multipoint status | Shared | `0x02/0x0010` → `0x02/0x8010`: u32, `0x00010100` = on. No source names an "off" value; shokzctl reports others as unknown | Cmd:61-62; Support:634-639 | 2, 4 | Implemented, unverified. Observe the off value at test C2 |
+| Multipoint peer list | Shared, Pro 2 quirk | `0x02/0x0004` → `0x02/0x8004`: `00`, slot count, then per entry index, address (reversed), connected, name length, name. Bad CRC with >2 peers; count over-reports; garbled tail | Cmd:47; Support:155-171, 667-718 | 2, 3 (quirks), 4 | Implemented, unverified. Bad CRC accepted for this reply only |
+| Multipoint on / off | Shared | ON `0x01/0x0011` no args → `0x01/0x8011` u32 status (0 = ok). OFF `0x01/0x0010` args = the asking device's own address, reversed → `0x01/0x8010` | Support:641-665, 841-866 | 2, 4 | Implemented, unverified. Off sends Fedora's adapter address |
+| Connect / disconnect a remembered device | Shared | `0x01/0x000b` / `0x01/0x000c`, args = address reversed → `0x01/0x800b` / `0x01/0x800c` u32 status; `0x400` = too many connected | Support:719-736, 905-918 | 2, 4 | Implemented, unverified. shokzctl never targets this computer's own address |
+| Multipoint pairing mode | Shared | `0x01/0x001d`, `0x01/0x0023` (no reply waited) | Support:921-928 | 2 | Not implemented: out of scope |
 | Button controls | Not on Pro 2 | `CONTROLS_GET` goes unanswered on Pro 2 | Pro2:28-31; Cmd:10 | 3 | Don't send |
 
 ## Where shokzctl differs from Gadgetbridge on purpose
@@ -95,24 +98,20 @@ Verified 2026-11-13: BlueZ resolved the channel from SDP and delivered the socke
 
 `FIRMWARE_GET` alone, then `FIRMWARE_GET`, `BATTERY_GET`, `EQUALIZER_GET`. All passed; details in `test-results.md`.
 
-## Proposed EQ write test (M4, needs Markos's approval)
+## Write frames for the remaining hardware tests
 
-Not implemented yet. It needs `shokzctl eq get` and `eq set standard|vocal` first, built on `status`. A write counts as **confirmed** only when `EQUALIZER_GET` reads the new preset back. The `0x01/0x800e` acknowledgement is logged but treated as "received", not "applied". If a write gets no reply, the outcome is **uncertain**: the next step is a read, never a resend.
-
-**Preconditions:** same as M3, plus music playing from Fedora at low volume so the change is audible. The starting EQ is Standard (read at M3; read again first).
-
-**Bytes** (encoder output, args from Pro2:49-56):
+The test sequence is in `hardware-test-plan.md`. Every write is implemented as: read, send once, read back. A write is confirmed only by the readback; the `0x01/0x800e` acknowledgement counts as "received". Nothing is resent.
 
 ```text
 EQUALIZER_SET Vocal:    a55a34000100000030006d10010000002800000002000000040000000100000003000000040000000e000000040000000800000002fafe0405010000
 EQUALIZER_SET Standard: a55a3400010000003000c218010000002800000002000000040000000100000003000000040000000e00000004000000080000000100000000000000
+EQUALIZER_SET Bass:     a55a3400010000003000cea8010000002800000002000000040000000100000003000000040000000e00000004000000080000000309f90000000000
+EQUALIZER_SET Treble:   a55a34000100000030002ed6010000002800000002000000040000000100000003000000040000000e00000004000000080000000400000104050000
+EQUALIZER_SET custom +2 0 0 0 0:
+                        a55a3400010000003000e02b010000002800000002000000040000000100000003000000040000000e00000004000000080000000502000000000000
+MULTIPOINT_GET:         a55a2c00010000002800628f01000000200000000200000004000000020000000300000004000000100000000400000000000000
+MULTIPOINT_DEVICES_GET: a55a2c0001000000280052bf01000000200000000200000004000000020000000300000004000000040000000400000000000000
+MULTIPOINT_ON:          a55a2c000100000028007bb301000000200000000200000004000000010000000300000004000000110000000400000000000000
 ```
 
-**Steps:**
-
-1. `eq get` → expect Standard.
-2. `eq set vocal` → expect `0x01/0x800e` (and maybe `0x03/0x0009`), then readback Vocal. Markos listens for the change.
-3. `eq set standard` → readback Standard. Markos confirms it sounds as before.
-4. Persistence, separately: set Vocal, Markos turns the headset off and on, `eq get`, then restore Standard and read back.
-
-**Stop** on: a readback that doesn't match, no acknowledgement *and* no readback, an unexpected reply, or anything odd in the audio. Restore with `eq set standard` only if the channel still works normally; otherwise use the Shokz app.
+`MULTIPOINT_OFF`, connect and disconnect carry a Bluetooth address, so their frames aren't written here; the trace records them.
