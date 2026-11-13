@@ -176,6 +176,7 @@ class Headset:
         self._readback_interval = readback_interval
         self._peer_timeout = peer_timeout
         self._peer_interval = peer_interval
+        self.last_eq: Equalizer | None = None
 
     @property
     def firmware(self) -> str | None:
@@ -430,6 +431,7 @@ class Headset:
 
     async def _read_eq(self) -> Equalizer:
         eq = await self._query(EQUALIZER_GET, Equalizer)
+        self.last_eq = eq
         self.report = dataclasses.replace(
             self.report, active_eq=Observed(eq_label(eq), SOURCE.format(EQUALIZER_GET.name))
         )
