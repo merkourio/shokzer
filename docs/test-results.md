@@ -65,3 +65,35 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 - **Packaging:** wheel and sdist build; fresh install into a new venv runs `shokzctl --version` and passive `diagnose`, and the GUI modules import. `desktop-file-validate` passes; `appstreamcli validate --no-net` passes with the missing homepage downgraded to info. The RPM isn't built yet: it needs `rpm-build` and the spec's build dependencies installed with sudo.
 - **Not hardware evidence.** Nothing new was sent to the headset. The write behaviour is tested against `tests/sim_headset.py`, which models acknowledgements, slow changes, unapplied changes and lost channels; none of that is observed behaviour.
 - **Review fixes** (commit after `fbdf641`): an independent review of the write path found no double sends and no stuck locks, and six issues that are now fixed. A non-zero acknowledgement status is judged by the readback. No acknowledgement plus the old value is reported as uncertain, not as not applied. Multipoint changes are refused while the status value is unknown. Connecting a peer needs multipoint on. Peer changes are refused when BlueZ doesn't report this computer's address. Profile and session cleanup always run, even after a failed connect or a broken trace file. The GUI's Custom option no longer writes. `pytest` 221 passed; GUI tests 5 passed.
+
+## 2026-11-13 — hardware session A-G (writes, multipoint, robustness, GUI, RPM)
+
+- **Commits during the session:** `14e6d78` at the start; fixes `83bd5d2` (fragment reassembly), `122cbd7` (verified features), `d82b3ee` (shutdown). Firmware `BOS_HU_R_47_20251023`, Fedora 44, BlueZ 5.87.
+- **Setup:** Markos present, music playing quietly from Fedora (volume 0.32), Shokz app force-stopped except in A8 and D1. Traces in `local/traces/2026-11-13-*.jsonl` (outside Git).
+
+| Step | Result | Notes |
+|---|---|---|
+| A1 status | Pass | EQ Standard |
+| A2 Vocal | Pass | Ack in 40 ms; readback `02 fa fe 04 05 01 00` matches the bytes sent; heard |
+| A3 Standard | Pass | Sounded as before |
+| A4 Bass Boost, back to Standard | Pass | Heard |
+| A5 Treble Boost | Pass | Heard |
+| A6 power cycle | Pass | Treble Boost persisted; channel reopened after reconnect |
+| A7 GNOME reconnect | Skipped | A6 covered a reconnect |
+| A8 phone app view | Pass | App showed Treble Boost set by shokzctl |
+| B custom EQ | Pass | Bands read back exactly. +2 too subtle to hear; at +5 band 1 is the low end, band 5 the high end. Restored Standard |
+| C1 multipoint status | Pass after `83bd5d2` | First attempt timed out: the device list arrives in two fragments the decoder dropped. Reassembled, CRC valid; 3 devices |
+| C2 off | Pass | Ack 0; Pixel 10 dropped, this computer stayed; headset sent a connection notice; status reads `0x00010000` (now the known off value) |
+| C3 on | Pass | Confirmed `0x00010100` |
+| C4 connect, disconnect, connect | Pass | Connect ack status `0x300`, connected after ~3.3 s; disconnect ack 0 |
+| D1 app connected | Headset refuses | `br-connection-refused`, exit 3; one management connection at a time. Hint added |
+| D2 headset off during reads | Pass | 80 reads over 45 s: 39 clean "isn't connected" (exit 3), no hang (longest gap 0.93 s), recovered after reconnect. No read happened to straddle the exact power-off |
+| D3 CLI while GUI idle | Pass | |
+| D4 two sessions | Pass | Second refused by the lock |
+| D5 suspend/resume | Skipped | |
+| D6 BlueZ restart | Pass | `diagnose --watch` showed every transition within 1 s; headset reconnected on its own after ~29 s |
+| E GUI | Pass after `d82b3ee` | Values, EQ switching, connections, disconnect/reconnect all correct. Closing during a change once left a hidden process, and closing 30 ms into a connect left BlueZ answering `br-connection-busy` until a power cycle. Fixed; re-tested closing 10 and 30 ms into a change on the real headset: change completed and confirmed, app exited in 0.3-0.4 s, BlueZ fine |
+| F RPM | Pass | Build deps from Fedora repos only (pulled Python 3.14.8 → 3.14.10). RPM `%check` 235 passed; desktop and AppStream valid. Installed; `/usr/bin/shokzctl status` works on Fedora's dbus-fast 2.45; app in GNOME grid with icon, opens and works. Kept installed, so removal wasn't tested |
+| G Android comparison | Skipped | Android build and app version not recorded |
+
+**Result:** every built feature is now verified on this firmware (`capabilities.VERIFIED`). Offline suite: 235 passed.

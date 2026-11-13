@@ -19,7 +19,7 @@ Paths below are relative to `app/src/main/java/nodomain/freeyourgadget/gadgetbri
 4. **Offline tested here**: our tests pass against tier-2/3 evidence.
 5. **Hardware verified here**: observed on Markos's headset from Fedora, recorded in `test-results.md`.
 
-Tier 5 so far: the management channel, firmware read, battery read and EQ read (2026-11-13, `test-results.md` M3).
+Tier 5 (hardware verified on firmware `BOS_HU_R_47_20251023`, 2026-11-13): the management channel, firmware, battery and EQ reads, all four presets, custom EQ, multipoint status, on/off, and connecting/disconnecting a remembered device. Details in `test-results.md`.
 
 ## Transport
 
@@ -36,15 +36,15 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 | Offset | Size | Field | Notes |
 |---|---|---|---|
 | 0 | 2 | Preamble `A5 5A` | `0x5aa5` written LE (Support:964) |
-| 2 | 2 | Frame length after byte 8 | Encoder writes payload length + 4 |
-| 4 | 4 | Header flags | Encoder writes `01 00 00 00`. Decoder comments: byte 4 "always 1?", byte 5 "isAck?", bytes 6-7 "always 0?" (Support:140-142). **Observed on Pro 2:** every reply carried `01 01 00 00`, so byte 5 = 1 marks a reply. Not used for matching |
+| 2 | 2 | Frame length after byte 8 | Payload length + 4 in a whole frame or first fragment; just the data length in a later fragment |
+| 4 | 4 | Header flags | **Observed on Pro 2:** byte 4 = fragment count, byte 5 = fragment number (requests `01 00`, whole replies `01 01`, the device list `02 01` then `02 02`), bytes 6-7 zero. Gadgetbridge's comments guessed "always 1?" and "isAck?" (Support:140-142) and its decoder doesn't handle fragments. In a later fragment the payload data starts at offset 8 (no length or CRC fields); the first fragment's CRC covers the whole reassembled payload |
 | 8 | 2 | Payload length | |
 | 10 | 2 | CRC-16/MAXIM of the payload | Reflected poly 0x8005, init 0, xorout 0xFFFF (`util/CheckSums.java:223-241`) |
 | 12 | n | Payload | TLV-like, all u32: `1, len(rest), 2, 4, group, 3, 4, code, 4, len(args), args` |
 
 - Upstream unit-test vector for `FIRMWARE_GET`: `app/src/test/java/nodomain/freeyourgadget/gadgetbridge/service/devices/shokz/ShokzSupportTest.kt:9-12`. Our encoder reproduces it byte for byte (`tests/test_protocol.py`).
 - Receive buffer is 2048 bytes (Support:963).
-- **CRC quirk:** on the Pro 2, `MULTIPOINT_DEVICES_RET` arrives with a wrong CRC when more than two peers are remembered; Gadgetbridge accepts that one reply type anyway (Support:155-171, upstream-tested). Every other bad-CRC frame is dropped.
+- **No CRC quirk:** Gadgetbridge accepts `MULTIPOINT_DEVICES_RET` with a wrong CRC and skips a "garbled tail" (Support:155-171, 667-718). On the Pro 2 that reply comes in two fragments (116 + 46 payload bytes); Gadgetbridge glues the second fragment's header into the payload. Reassembled, the CRC is valid and the list parses cleanly (test C1). shokzctl reassembles and accepts no bad CRC.
 
 ## Groups, replies and sequencing
 
@@ -60,24 +60,27 @@ Source: encoder Support:970-998, receive path Support:114-187, payload decode Su
 | Operation | Scope | Request → reply | Source | Tier | Open questions |
 |---|---|---|---|---|---|
 | Firmware read | Shared | `0x02/0x0002`, no args → `0x02/0x8002`: `00`, then NUL-terminated string | Cmd:26-27; Support:83, 399-417; test vector ShokzSupportTest.kt:9-12 | 2, 3 (encoding), 4, **5** | Resolved: headset reports `BOS_HU_R_47_20251023`, the app shows it without `BOS_`. Reply args are padded with 13 zero bytes after the NUL |
-| Battery read | Shared | `0x02/0x0003` → `0x02/0x8003`: `00`, level byte *b*; percent = (*b* + 1) × 10 | Cmd:7-8; Support:442-457 | 2, 4, **5** | Scale matched BlueZ once (byte 5 → 60 %). Reply args were `00 05 ff 00`: meaning of `ff 00` unknown, ignored. Headset sends no battery notifications (Coord:42-46) |
-| EQ read | Shared | `0x02/0x0008` → `0x02/0x8008`: `00`, preset code; if custom, 5 signed band bytes follow | Cmd:23-24; Support:459-507 | 2, 4, **5** | Standard read back as code 1 with args `00 01` + six zero bytes; whether those six carry tuning or custom bands is open |
+| Battery read | Shared | `0x02/0x0003` → `0x02/0x8003`: `00`, level byte *b*, then `ff 00` (unknown); percent = (*b* + 1) × 10 | Cmd:7-8; Support:442-457 | 2, 4, **5** | Matched BlueZ at 60 % and 50 %. Headset sends no battery notifications |
+| EQ read | Shared | `0x02/0x0008` → `0x02/0x8008`: `00`, preset code, then the preset's six tuning bytes as written (custom: the five band gains and `00`) | Cmd:23-24; Support:459-507 | 2, 4, **5** | — |
 | EQ change notice | Shared | Headset sends `0x03/0x0009`: preset code (no status byte). Gadgetbridge calls it `EQUALIZER_ACK` | Cmd:22; Support:459-507 | 2, 4 | Sent after our own writes, after button changes, or both? |
-| EQ set acknowledgement | Shared | `0x01/0x800e` (`EQ_UNK_ACK_1`); args not decoded; Gadgetbridge logs it as unhandled but it releases the queue | Cmd:21; Support:388-390, 748 | 2 | Args meaning; does it mean accepted or just received? |
-| Standard preset | **Pro 2** | `0x01/0x000e` args `01 00 00 00 00 00 00 00` | Pro2:49-53 | 2, 3 ("captured from a live HCI snoop of the official app"), 4 | Readback, audible effect, persistence |
-| Vocal preset | **Pro 2** | args `02 fa fe 04 05 01 00 00` (differs from other models: Coord:100-101) | Pro2:55-56 | 2, 3, 4 | Same |
-| Bass Boost preset | **Pro 2** | args `03 09 f9 00 00 00 00 00` | Pro2:58-59, 33-36 | 2, 3, 4 | Same |
-| Treble Boost preset | **Pro 2** | args `04 00 00 01 04 05 00 00` | Pro2:61-62, 33-36 | 2, 3, 4 | Same |
-| Custom EQ | **Pro 2** flag; encoding shared | args `05 b1 b2 b3 b4 b5 00 00`, each band −5…5 | Pro2:38-41; Coord:109-117, 256-264; Args:29 | 2, 3 (flag), 4 | Implemented (`eq custom`), unverified. Band frequencies, step units, slots, persistence open. Writing it overwrites the stored custom profile |
+| EQ set acknowledgement | Shared | `0x01/0x800e` (`EQ_UNK_ACK_1`) with args `00 00 00 00`, about 40 ms after the write | Cmd:21; Support:388-390, 748 | 2, **5** | Means "received"; shokzctl confirms by readback. No `0x03/0x0009` notice followed our own writes |
+| Standard preset | **Pro 2** | `0x01/0x000e` args `01 00 00 00 00 00 00 00` | Pro2:49-53 | 2, 3, 4, **5** | Read back and heard (test A) |
+| Vocal preset | **Pro 2** | args `02 fa fe 04 05 01 00 00` | Pro2:55-56 | 2, 3, 4, **5** | Read back and heard |
+| Bass Boost preset | **Pro 2** | args `03 09 f9 00 00 00 00 00` | Pro2:58-59 | 2, 3, 4, **5** | Read back and heard |
+| Treble Boost preset | **Pro 2** | args `04 00 00 01 04 05 00 00` | Pro2:61-62 | 2, 3, 4, **5** | Read back and heard; survived a power cycle |
+| Custom EQ | **Pro 2** | args `05 b1 b2 b3 b4 b5 00 00`, each band −5…5 | Pro2:38-41; Coord:109-117 | 2, 3, 4, **5** | Bands read back exactly. Band 1 is the low end, band 5 the high end (heard at +5; +2 was too subtle). Frequencies and persistence unknown. Writing it replaces the stored custom profile |
 | Classic / Volume Boost | **Pro 2** flag | codes `0x08` / `0x0a`, args code + seven `00` (shared default, not Pro 2-specific bytes) | Pro2:43-47; Coord:81-98; Args:32-33 | 2, 3 (flag only) | Pro 2 args were not captured separately. Out of scope until evidenced |
-| Multipoint status | Shared | `0x02/0x0010` → `0x02/0x8010`: u32, `0x00010100` = on. No source names an "off" value; shokzctl reports others as unknown | Cmd:61-62; Support:634-639 | 2, 4 | Implemented, unverified. Observe the off value at test C2 |
-| Multipoint peer list | Shared, Pro 2 quirk | `0x02/0x0004` → `0x02/0x8004`: `00`, slot count, then per entry index, address (reversed), connected, name length, name. Bad CRC with >2 peers; count over-reports; garbled tail | Cmd:47; Support:155-171, 667-718 | 2, 3 (quirks), 4 | Implemented, unverified. Bad CRC accepted for this reply only |
-| Multipoint on / off | Shared | ON `0x01/0x0011` no args → `0x01/0x8011` u32 status (0 = ok). OFF `0x01/0x0010` args = the asking device's own address, reversed → `0x01/0x8010` | Support:641-665, 841-866 | 2, 4 | Implemented, unverified. Off sends Fedora's adapter address |
-| Connect / disconnect a remembered device | Shared | `0x01/0x000b` / `0x01/0x000c`, args = address reversed → `0x01/0x800b` / `0x01/0x800c` u32 status; `0x400` = too many connected | Support:719-736, 905-918 | 2, 4 | Implemented, unverified. shokzctl never targets this computer's own address |
+| Multipoint status | Shared | `0x02/0x0010` → `0x02/0x8010`: bytes `00 01 01 00` = on, `00 00 01 00` = off (byte 1 is the flag) | Cmd:61-62; Support:634-639 | 2, **5** | Off value observed at test C2; other values reported as unknown |
+| Multipoint peer list | Shared | `0x02/0x0004` → `0x02/0x8004`, fragmented: `00`, slot count (3 here), then per entry index, address (reversed), connected, name length (31), name | Cmd:47; Support:667-718 | 2, **5** | Matched the real connections |
+| Multipoint on / off | Shared | ON `0x01/0x0011` → `0x01/0x8011` status 0. OFF `0x01/0x0010` with the asking device's address → `0x01/0x8010` status 0; other devices drop, the asker stays | Support:641-665, 841-866 | 2, **5** | — |
+| Connect / disconnect a remembered device | Shared | `0x01/0x000b` / `0x01/0x000c` with the address reversed. Connect is acknowledged with status **`0x300`** and completes in about 3 s; disconnect with 0 | Support:719-736, 905-918 | 2, **5** | Gadgetbridge names only `0x400` (too many connected). shokzctl judges by the device list, never by the status alone |
+| Connection notice | Shared | Headset sends `0x03/0x000b` unprompted when a device connects or drops: address (reversed), connected, name length, name | Cmd:51; Support:729-732 | **5** | Layout observed at C2/C4; decoded, informational |
 | Multipoint pairing mode | Shared | `0x01/0x001d`, `0x01/0x0023` (no reply waited) | Support:921-928 | 2 | Not implemented: out of scope |
 | Button controls | Not on Pro 2 | `CONTROLS_GET` goes unanswered on Pro 2 | Pro2:28-31; Cmd:10 | 3 | Don't send |
 
 ## Where shokzctl differs from Gadgetbridge on purpose
+
+- Fragmented replies are reassembled; no reply type gets a CRC exception.
 
 - Replies are matched on group and code, not code alone.
 - Writes are never resent blindly. Timeout on a write leaves the outcome uncertain until an `EQUALIZER_GET` confirms it.
@@ -115,3 +118,10 @@ MULTIPOINT_ON:          a55a2c000100000028007bb301000000200000000200000004000000
 ```
 
 `MULTIPOINT_OFF`, connect and disconnect carry a Bluetooth address, so their frames aren't written here; the trace records them.
+
+## Observed BlueZ and headset behaviour (2026-11-13)
+
+- **One management connection at a time.** With the Shokz app connected, `ConnectProfile` fails with `br-connection-refused` (test D1). shokzctl suggests closing the app.
+- **Don't abandon `ConnectProfile`.** Cancelling it mid-flight and unregistering the profile left BlueZ answering `br-connection-busy` to every new connect until the headset was power-cycled. shokzctl now waits for BlueZ's answer before releasing the profile.
+- **Channel open time:** 2.1 s the first time after the headset connects, 0.05-0.5 s afterwards.
+- **BlueZ restart:** the headset dropped and reconnected by itself after about 29 s (test D6).

@@ -1,5 +1,8 @@
 # Hardware test plan — everything after M3
 
+**Run 2026-11-13:** A-F done, results in `test-results.md`. Still open: A7 (GNOME reconnect), D5 (suspend/resume), RPM removal (F), G (Android comparison). Everything that passed is in `VERIFIED`.
+
+
 Everything below is built and passes offline. None of it has run against the headset. Run it with Markos present, the Shokz app force-stopped on the Pixel unless a step says otherwise, and music playing from Fedora at low volume so changes are audible.
 
 Each step has a trace (`--trace local/traces/<date>-<step>.jsonl`). Record results in `test-results.md`; after a step passes, add its feature to `VERIFIED` in `src/shokzctl/capabilities.py` for `BOS_HU_R_47_20251023`.

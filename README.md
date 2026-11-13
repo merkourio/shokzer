@@ -2,7 +2,7 @@
 
 Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth, from the command line or a GTK app. Fedora's audio stack keeps handling playback and calls; shokzctl is for headset settings.
 
-**Status:** reading firmware, battery and EQ is verified on firmware `BOS_HU_R_47_20251023`. EQ presets, custom EQ and multipoint are built and tested offline but not yet on the headset, so they need `--allow-unverified` and the app shows them as not verified. The test sequence is in `docs/hardware-test-plan.md`.
+**Status:** everything here is verified on firmware `BOS_HU_R_47_20251023` (2026-11-13, `docs/test-results.md`): reads, all four EQ presets, custom EQ, multipoint and the app. Other firmware versions need `--allow-unverified`, and the app greys those features out. The headset takes one management connection at a time, so close the Shokz phone app first.
 
 ## Use
 
