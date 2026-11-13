@@ -1,0 +1,49 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead (with the exact error).
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Shokzer version
+      description: From `shokzer --version`.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Linux distribution and version
+      placeholder: Fedora 44
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - RPM (Fedora)
+        - install.sh
+        - pipx
+        - From source
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: Output of `shokzer diagnose --json`
+      description: Addresses are hidden by default, so this is safe to share.
+      render: json
+  - type: textarea
+    id: trace
+    attributes:
+      label: Trace (optional)
+      description: |
+        For headset problems, run the failing command again with `--trace trace.jsonl` and attach
+        the file. It contains the bytes exchanged with the headset and no addresses.

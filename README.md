@@ -1,70 +1,77 @@
-# shokzer
+# Shokzer
 
-Manage a Shokz OpenRun Pro 2 from Fedora over Bluetooth, from the command line or a GTK app. Fedora's audio stack keeps handling playback and calls; shokzer is for headset settings.
+Settings for the **Shokz OpenRun Pro 2** on Linux: EQ presets, a five-band custom EQ, multipoint, and which of your devices are connected. It does what the phone app does, from a GTK app or the command line.
 
-**Status:** everything here is verified on firmware `BOS_HU_R_47_20251023` (2026-11-13, `docs/test-results.md`): reads, all four EQ presets, custom EQ, multipoint and the app. Other firmware versions need `--allow-unverified`, and the app greys those features out. The headset takes one management connection at a time, so close the Shokz phone app first.
+![Shokzer](docs/screenshots/shokzer.png)
+
+Every change is confirmed by reading the setting back from the headset, and nothing is ever sent twice. Playback and calls stay with your normal audio setup; Shokzer only changes headset settings.
+
+*Shokzer is a community project, not affiliated with or endorsed by Shokz.*
+
+## Install
+
+You need the headset paired and connected in your Bluetooth settings first.
+
+**Fedora 43 and 44:** download the RPM for your release from the [latest release](https://github.com/merkourio/shokzer/releases/latest), then:
+
+```sh
+sudo dnf install ./shokzer-*.rpm
+```
+
+**Any distribution:** the installer puts Shokzer in your home folder, no sudo needed:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/merkourio/shokzer/main/install.sh | sh
+```
+
+It needs Python 3.12 or newer. The app also needs PyGObject 3.50+, GTK 4 and libadwaita 1.4+; if those are missing, the installer sets up the command-line tool and prints the one command that adds them. Remove Shokzer again with `curl -fsSL https://raw.githubusercontent.com/merkourio/shokzer/main/install.sh | sh -s -- --uninstall`.
+
+**With pipx:** `pipx install --system-site-packages git+https://github.com/merkourio/shokzer` (the flag lets the app use your system's GTK bindings).
 
 ## Use
 
+Open **Shokzer** from your applications, or use the command line:
+
 ```sh
-shokzer diagnose                  # what BlueZ knows about the headset; sends nothing to it
-shokzer diagnose --watch          # print again whenever something changes; Ctrl-C to stop
-shokzer status                    # read firmware, battery and EQ from the headset
-shokzer eq get
-shokzer eq set vocal              # standard, vocal, bass or treble
-shokzer eq custom -2 0 1 0 3      # five band gains, each -5 to 5
-shokzer multipoint status         # on/off and the headset's remembered devices
+shokzer status                     # battery, firmware and current EQ
+shokzer eq set vocal               # standard, vocal, bass or treble
+shokzer eq custom -2 0 1 0 3       # five bands from low to high, each -5 to 5
+shokzer multipoint status          # multipoint and the headset's remembered devices
 shokzer multipoint on|off
 shokzer multipoint connect|disconnect ADDRESS
-shokzer-gui                       # the GTK app
+shokzer diagnose                   # what Linux's Bluetooth service knows; sends nothing
 ```
 
-Every command takes `--json`. Headset commands also take `--trace FILE` (every byte, as JSON lines; the repo ignores `local/`) and `--allow-unverified`.
+Add `--json` for machine-readable output. Addresses are hidden unless you pass `--show-identifiers`, so output is safe to share.
 
-`diagnose` is passive: it reads BlueZ's state over the system D-Bus and sends nothing to the headset. Everything else opens the headset's management channel (RFCOMM, service `0xFEF0`, through BlueZ's profile API). The headset must already be connected to Fedora, and the Shokz phone app should be closed so it doesn't hold the channel. One session runs at a time per user.
+## Good to know
 
-A change is reported as **confirmed** only when the headset reads the new value back. If it reads back the old value the change is **not applied**; if it can't be read back the outcome is **uncertain**, and you should read the current state before trying again. shokzer never resends a change, never connects or pairs devices itself, and never disconnects this computer.
+- **Close the Shokz phone app first.** The headset accepts one settings connection at a time, so Shokzer can't connect while the app is connected to it.
+- **Custom EQ replaces the one saved on the headset.** Write your bands down from the phone app first if you want to keep them.
+- **Turning multipoint off** keeps this computer connected and drops your other devices.
+- **Firmware:** tested on `BOS_HU_R_47_20251023` (shown as `HU_R_47_20251023` in the phone app). Other firmware versions get every feature too; Shokzer just asks you to [report how it went](https://github.com/merkourio/shokzer/issues/new?template=firmware-report.yml).
+- **Other Shokz models** aren't supported yet. Shokzer refuses to send them anything.
 
-Output redacts addresses so it can be shared; `--show-identifiers` prints them in full. With more than one paired OpenRun Pro 2, pick one with `--device ADDRESS` (and `--adapter hciN` if needed).
+## Troubleshooting
 
-| Exit | Meaning |
+| Problem | Fix |
 |---|---|
-| 0 | Done (for a change: confirmed, or already set) |
-| 2 | Invalid input |
-| 3 | Unavailable: no system bus, BlueZ not running, no adapter, headset not paired or not connected |
-| 4 | Ambiguous selection |
-| 5 | Permission denied |
-| 6 | Unsupported, or not verified on this firmware without `--allow-unverified` |
-| 7 | Timeout |
-| 8 | Headset protocol error |
-| 9 | Change sent but its outcome is uncertain |
-| 10 | Change not applied or refused by the headset |
-| 130 | Interrupted |
+| `br-connection-refused` | The Shokz phone app is connected to the headset. Force-stop it and try again. |
+| `br-connection-busy` that doesn't go away | Turn the headset off and on. |
+| "The headset isn't connected" | Connect it in your Bluetooth settings; Shokzer never connects or pairs devices itself. |
+| Permission denied talking to BlueZ | Some distributions only let members of the `bluetooth` group use BlueZ: `sudo usermod -aG bluetooth $USER`, then log out and in. |
+| The app doesn't start | Run `shokzer-gui` in a terminal: it says which GTK piece is missing. |
 
-## Develop
+Found a bug? [Open an issue](https://github.com/merkourio/shokzer/issues/new?template=bug-report.yml) with the output of `shokzer diagnose --json`.
 
-Needs Fedora's Python 3, PyGObject, GTK 4 and Libadwaita, plus [uv](https://docs.astral.sh/uv/). The venv uses system site packages so the GTK bindings are visible.
+## How it works
 
-```sh
-uv venv --system-site-packages --python /usr/bin/python3 .venv
-uv sync --group dev
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff check . && .venv/bin/python -m ruff format --check .
-.venv/bin/python -m mypy
-```
+Shokzer talks to the headset over its Bluetooth management channel (RFCOMM, service `0xFEF0`), which BlueZ opens on request; it never guesses channels or connects devices. The protocol knowledge comes from [Gadgetbridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) and was checked against a real headset, with two corrections: replies can be fragmented, and the multipoint off value is now known. Details, sources and evidence are in [docs/protocol-analysis.md](docs/protocol-analysis.md) and [docs/test-results.md](docs/test-results.md).
 
-Tests are offline. Two opt-in groups:
+## Contributing
 
-```sh
-# Real headset (read-only queries)
-SHOKZ_HARDWARE=1 SHOKZ_DEVICE=<address> .venv/bin/python -m pytest tests/hardware
-# GUI rendering and a full app run against a simulated headset, on a headless display
-gtk4-broadwayd :7 &
-GDK_BACKEND=broadway BROADWAY_DISPLAY=:7 SHOKZ_GUI=1 .venv/bin/python -m pytest tests/gui
-```
-
-`packaging/build-rpm.sh` builds a local RPM (see `docs/hardware-test-plan.md`, step F). Read `AGENTS.md` before changing anything that talks to the headset.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful contribution right now.
 
 ## License
 
-AGPL-3.0-or-later. The protocol implementation is derived from [Gadgetbridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) (AGPL-3.0); see `NOTICE`, `docs/licensing.md` and `docs/protocol-analysis.md`. Not affiliated with Shokz.
+AGPL-3.0-or-later. The protocol implementation is derived from Gadgetbridge (AGPL-3.0-or-later); see [NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md).

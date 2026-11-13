@@ -1,9 +1,11 @@
 # Hardware test plan — everything after M3
 
+The commands below are as run on 2026-11-13. Since then `--allow-unverified` has been removed (every feature works on any firmware) and the tool was renamed from `shokzctl` to `shokzer`.
+
 **Run 2026-11-13:** A-F done, results in `test-results.md`. Still open: A7 (GNOME reconnect), D5 (suspend/resume), RPM removal (F), G (Android comparison). Everything that passed is in `VERIFIED`.
 
 
-Everything below is built and passes offline. None of it has run against the headset. Run it with Markos present, the Shokz app force-stopped on the Pixel unless a step says otherwise, and music playing from Fedora at low volume so changes are audible.
+Everything below is built and passes offline. None of it has run against the headset. Run it with the headset's owner present, the Shokz app force-stopped on the Pixel unless a step says otherwise, and music playing from Fedora at low volume so changes are audible.
 
 Each step has a trace (`--trace local/traces/<date>-<step>.jsonl`). Record results in `test-results.md`; after a step passes, add its feature to `VERIFIED` in `src/shokzer/capabilities.py` for `BOS_HU_R_47_20251023`.
 
@@ -13,14 +15,14 @@ Each step has a trace (`--trace local/traces/<date>-<step>.jsonl`). Record resul
 
 Bytes are in `protocol-analysis.md`. Each `eq set` reads first, sends once, then reads back.
 
-| Step | Command | Expect | Markos checks |
+| Step | Command | Expect | Owner checks |
 |---|---|---|---|
 | A1 | `shokzer status` | EQ standard | — |
 | A2 | `shokzer eq set vocal --allow-unverified` | `confirmed`, read back vocal | Audible change |
 | A3 | `shokzer eq set standard --allow-unverified` | `confirmed` | Sounds as before |
 | A4 | `shokzer eq set bass --allow-unverified`, then back to standard | `confirmed` both | Audible change, then back |
 | A5 | `shokzer eq set treble --allow-unverified`, then back to standard | `confirmed` both | Audible change, then back |
-| A6 | Set vocal; Markos turns the headset off and on; it reconnects; `shokzer eq get` | Vocal if the headset stores it | — |
+| A6 | Set vocal; turn the headset off and on; it reconnects; `shokzer eq get` | Vocal if the headset stores it | — |
 | A7 | Disconnect and reconnect in GNOME Settings; `shokzer eq get`; set standard | Same as before reconnecting | — |
 | A8 | Open the Shokz app; does it show the EQ shokzer set? | — | App view |
 
@@ -28,7 +30,7 @@ Pass for a preset → add `eq_write_<preset>` to `VERIFIED`.
 
 ## B. Custom EQ (M7a)
 
-Writing the custom EQ overwrites the headset's stored custom profile. If Markos has one he wants to keep, write its five values down from the app first.
+Writing the custom EQ overwrites the headset's stored custom profile. If you have one you want to keep, write its five values down from the app first.
 
 | Step | Command | Expect |
 |---|---|---|

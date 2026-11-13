@@ -1,13 +1,14 @@
 %global app_id pm.markos.Shokzer
-%global pypi_version 0.1.0.dev0
+%global pypi_version 0.1.0
 
 Name:           shokzer
-Version:        0.1.0~dev0
+Version:        0.1.0
 Release:        1%{?dist}
-Summary:        Manage Shokz OpenRun Pro 2 headset settings
+Summary:        Settings for the Shokz OpenRun Pro 2
 
 License:        AGPL-3.0-or-later
-# Local build only: the source archive comes from `uv build --sdist` (packaging/build-rpm.sh).
+URL:            https://github.com/merkourio/shokzer
+# Made by packaging/build-rpm.sh or .copr/Makefile (git archive of the tagged tree).
 Source0:        %{name}-%{pypi_version}.tar.gz
 
 BuildArch:      noarch
@@ -26,10 +27,10 @@ Requires:       gtk4
 Requires:       libadwaita
 
 %description
-Command line tool and GTK app for a Shokz OpenRun Pro 2 connected to Fedora.
-Reads battery, firmware and EQ over the headset's management channel and
-changes EQ presets, custom EQ and multipoint where verified for the headset's
-firmware. Not affiliated with Shokz.
+Shokzer changes the settings of a Shokz OpenRun Pro 2 from Linux: EQ presets,
+a five-band custom EQ, multipoint and connected devices, plus battery and
+firmware. It has a GTK app and a command-line tool, shokzer. Community project,
+not affiliated with Shokz.
 
 %prep
 %autosetup -n %{name}-%{pypi_version}
@@ -53,8 +54,7 @@ install -Dpm 0644 data/icons/hicolor/scalable/apps/%{app_id}.svg \
 %pyproject_check_import -e 'shokzer.ui.app' -e 'shokzer.ui.window'
 %pytest -m "not hardware and not gui"
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{app_id}.desktop
-# No homepage exists for this local-only app; every other check stays strict.
-appstreamcli validate --no-net --override=url-homepage-missing=info %{buildroot}%{_metainfodir}/%{app_id}.metainfo.xml
+appstreamcli validate --no-net %{buildroot}%{_metainfodir}/%{app_id}.metainfo.xml
 
 %files -f %{pyproject_files}
 %doc README.md
@@ -65,5 +65,5 @@ appstreamcli validate --no-net --override=url-homepage-missing=info %{buildroot}
 %{_datadir}/icons/hicolor/scalable/apps/%{app_id}.svg
 
 %changelog
-* Fri Nov 13 2026 Markos - 0.1.0~dev0-1
-- First local build
+* Fri Nov 13 2026 Markos Merkouris <hello@markos.pm> - 0.1.0-1
+- First release

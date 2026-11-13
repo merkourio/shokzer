@@ -17,7 +17,7 @@ Paths below are relative to `app/src/main/java/nodomain/freeyourgadget/gadgetbri
 2. **Source fact**: what the pinned code does. *Model-specific* when it sits in the Pro 2 coordinator; *shared* when it applies to every Shokz model Gadgetbridge supports.
 3. **Upstream-tested**: the code carries a comment saying it was confirmed on a real Pro 2, or a unit-test vector exists. We haven't reproduced either.
 4. **Offline tested here**: our tests pass against tier-2/3 evidence.
-5. **Hardware verified here**: observed on Markos's headset from Fedora, recorded in `test-results.md`.
+5. **Hardware verified here**: observed on the maintainer's headset from Fedora, recorded in `test-results.md`.
 
 Tier 5 (hardware verified on firmware `BOS_HU_R_47_20251023`, 2026-11-13): the management channel, firmware, battery and EQ reads, all four presets, custom EQ, multipoint status, on/off, and connecting/disconnecting a remembered device. Details in `test-results.md`.
 

@@ -4,19 +4,32 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-or-later</project_license>
   <name>Shokzer</name>
-  <summary>Change settings on a Shokz OpenRun Pro 2</summary>
+  <summary>Settings for the Shokz OpenRun Pro 2</summary>
   <description>
     <p>
-      Reads the battery, firmware and EQ of a Shokz OpenRun Pro 2 connected to this computer,
-      and changes the EQ preset, custom EQ and multipoint where those are verified for the
-      headset's firmware. Playback and calls stay with the system audio stack.
+      Change the settings of a Shokz OpenRun Pro 2 from your Linux desktop, the way the phone
+      app does: EQ presets, a five-band custom EQ, multipoint, and which of your devices are
+      connected. It also shows battery and firmware.
     </p>
-    <p>Not affiliated with or endorsed by Shokz.</p>
+    <p>
+      Every change is confirmed by reading the setting back from the headset. Playback and
+      calls stay with your normal audio setup. A command-line tool, shokzer, does the same.
+    </p>
+    <p>Shokzer is a community project, not affiliated with or endorsed by Shokz.</p>
   </description>
   <launchable type="desktop-id">pm.markos.Shokzer.desktop</launchable>
-  <developer id="org.example">
-    <name>Markos</name>
+  <developer id="pm.markos">
+    <name>Markos Merkouris</name>
   </developer>
+  <url type="homepage">https://github.com/merkourio/shokzer</url>
+  <url type="bugtracker">https://github.com/merkourio/shokzer/issues</url>
+  <url type="vcs-browser">https://github.com/merkourio/shokzer</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>EQ, custom EQ and connections</caption>
+      <image>https://raw.githubusercontent.com/merkourio/shokzer/main/docs/screenshots/shokzer.png</image>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1"/>
   <requires>
     <display_length compare="ge">360</display_length>
@@ -30,9 +43,9 @@
     <binary>shokzer-gui</binary>
   </provides>
   <releases>
-    <release version="0.1.0~dev0" date="2026-11-13">
+    <release version="0.1.0" date="2026-11-13">
       <description>
-        <p>First local build: diagnostics, status, EQ and multipoint.</p>
+        <p>First release: EQ presets, custom EQ, multipoint, battery and firmware, in the app and on the command line.</p>
       </description>
     </release>
   </releases>

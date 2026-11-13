@@ -32,8 +32,8 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 ## 2026-11-13 — first management queries on Fedora (M3)
 
 - **Commit:** `e559b79` (`shokzer status`). Offline before the run: `pytest` 151 passed, ruff and mypy clean.
-- **Approval:** Markos approved M3 (read-only) and was at the computer. Battery and EQ reads were approved conditionally on a clean firmware reply.
-- **Setup:** headset connected to Fedora only, on `a2dp-sink`, volume 0.12. Shokz app force-stopped on the Pixel 10. Markos reported the app showed EQ **Standard** beforehand.
+- **Approval:** The maintainer approved M3 (read-only) and was at the computer. Battery and EQ reads were approved conditionally on a clean firmware reply.
+- **Setup:** headset connected to Fedora only, on `a2dp-sink`, volume 0.12. Shokz app force-stopped on the phone. The maintainer reported the app showed EQ **Standard** beforehand.
 - **Transport:** BlueZ profile API as planned: `RegisterProfile(0xFEF0, Role=client, AutoConnect=false, RequireAuthentication=true)`, then `Device1.ConnectProfile`. BlueZ resolved the RFCOMM channel from SDP and passed the socket in `NewConnection`. No channel number was chosen or probed. Cleanup: socket closed, `DisconnectProfile`, `UnregisterProfile`.
 - **Traces:** `local/traces/2026-11-13-m3-1-firmware.jsonl`, `local/traces/2026-11-13-m3-2-all-reads.jsonl` (outside Git). The three reply frames are fixtures in `tests/fixtures/protocol_vectors.json` ("hardware_replies").
 
@@ -51,7 +51,7 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 | CRC, framing | Every reply had a valid CRC and frame length = payload length + 4 |
 | Header flags | Replies `01 01 00 00`, requests `01 00 00 00`: byte 5 marks a reply |
 | Unprompted messages | None |
-| Audio | Still connected on `a2dp-sink` after each run. Markos noticed nothing (no beep, click, dropout or prompt) on runs 1 and 2 |
+| Audio | Still connected on `a2dp-sink` after each run. The maintainer noticed nothing (no beep, click, dropout or prompt) on runs 1 and 2 |
 
 **Result:** M3 gate met: repeatable traced response from the selected headset, with bounded cleanup. **Limits:**
 - The first channel open took 2.08 s, later ones about 0.5 s. Not explained (likely SDP caching).
@@ -69,7 +69,7 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 ## 2026-11-13 — hardware session A-G (writes, multipoint, robustness, GUI, RPM)
 
 - **Commits during the session:** `14e6d78` at the start; fixes `83bd5d2` (fragment reassembly), `122cbd7` (verified features), `d82b3ee` (shutdown). Firmware `BOS_HU_R_47_20251023`, Fedora 44, BlueZ 5.87.
-- **Setup:** Markos present, music playing quietly from Fedora (volume 0.32), Shokz app force-stopped except in A8 and D1. Traces in `local/traces/2026-11-13-*.jsonl` (outside Git).
+- **Setup:** maintainer present, music playing quietly from Fedora (volume 0.32), Shokz app force-stopped except in A8 and D1. Traces in `local/traces/2026-11-13-*.jsonl` (outside Git).
 
 | Step | Result | Notes |
 |---|---|---|
@@ -83,7 +83,7 @@ Each entry: date, application commit, what ran, outcome, and limits. Raw logs st
 | A8 phone app view | Pass | App showed Treble Boost set by shokzer |
 | B custom EQ | Pass | Bands read back exactly. +2 too subtle to hear; at +5 band 1 is the low end, band 5 the high end. Restored Standard |
 | C1 multipoint status | Pass after `83bd5d2` | First attempt timed out: the device list arrives in two fragments the decoder dropped. Reassembled, CRC valid; 3 devices |
-| C2 off | Pass | Ack 0; Pixel 10 dropped, this computer stayed; headset sent a connection notice; status reads `0x00010000` (now the known off value) |
+| C2 off | Pass | Ack 0; the phone dropped, this computer stayed; headset sent a connection notice; status reads `0x00010000` (now the known off value) |
 | C3 on | Pass | Confirmed `0x00010100` |
 | C4 connect, disconnect, connect | Pass | Connect ack status `0x300`, connected after ~3.3 s; disconnect ack 0 |
 | D1 app connected | Headset refuses | `br-connection-refused`, exit 3; one management connection at a time. Hint added |

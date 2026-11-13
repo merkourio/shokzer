@@ -1,0 +1,46 @@
+name: Firmware report
+description: Tell us how Shokzer works with your headset's firmware, good or bad.
+title: "Firmware report: "
+labels: ["firmware report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Reports like this are how a firmware version gets marked as tested.
+        Run `shokzer status` and paste the firmware line below.
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      description: As shown by `shokzer status` or the app, for example BOS_HU_R_47_20251023.
+    validations:
+      required: true
+  - type: checkboxes
+    id: worked
+    attributes:
+      label: What worked
+      description: Tick what you tried and saw working.
+      options:
+        - label: Battery, firmware and EQ shown
+        - label: EQ presets (Standard, Vocal, Bass Boost, Treble Boost)
+        - label: Custom EQ
+        - label: Multipoint on/off
+        - label: Connecting or disconnecting another device
+        - label: The app (shokzer-gui)
+  - type: textarea
+    id: problems
+    attributes:
+      label: Anything that didn't work or seemed off
+  - type: input
+    id: system
+    attributes:
+      label: Linux distribution and version
+      placeholder: Fedora 44
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `shokzer status --json`
+      description: Addresses are hidden by default, so this is safe to share.
+      render: json

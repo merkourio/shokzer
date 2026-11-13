@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+
+  fedora:
+    name: Fedora ${{ matrix.fedora }} (GUI tests and RPM)
+    runs-on: ubuntu-latest
+    container: fedora:${{ matrix.fedora }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ["43", "44"]
+    steps:
+      - name: Install build and test dependencies
+        run: >
+          dnf -y install git rpm-build pyproject-rpm-macros python3-devel python3-hatchling
+          python3-dbus-fast python3-pytest python3-pytest-asyncio desktop-file-utils appstream
+          python3-gobject gtk4 libadwaita
+      - uses: actions/checkout@v4
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: GUI tests on a headless display
+        run: |
+          gtk4-broadwayd :5 &
+          sleep 2
+          GDK_BACKEND=broadway BROADWAY_DISPLAY=:5 SHOKZ_GUI=1 PYTHONPATH=src \
+            python3 -m pytest -p no:cacheprovider tests/gui
+      - name: Build the RPM (runs the offline tests in %check)
+        run: packaging/build-rpm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-fedora-${{ matrix.fedora }}
+          path: build/rpm/RPMS/noarch/*.rpm
