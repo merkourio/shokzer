@@ -148,8 +148,7 @@ async def test_multipoint_toggle(tmp_path: Path) -> None:
     controller, _, sim = make(tmp_path, FakeBluez(headset_tree()))
     await controller.start()
     await controller.set_multipoint(False)
-    # The "off" value isn't known yet, so the readback can't confirm it.
-    assert controller.state.message == "Not sure the change landed; refresh before trying again"
+    assert controller.state.message == "Multipoint set to off"
     assert controller.state.multipoint is not None
     assert [(m.group, m.code) for m in sim.writes()] == [(0x01, 0x0010)]
     await controller.close()

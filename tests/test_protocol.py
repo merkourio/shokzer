@@ -38,6 +38,7 @@ from shokzctl.protocol.responses import (
     Battery,
     Equalizer,
     Firmware,
+    MultipointConnectionNotice,
     MultipointDevices,
     MultipointStatus,
     Unhandled,
@@ -392,3 +393,15 @@ def test_first_fragment_must_be_shorter_than_the_total() -> None:
     decoder = StreamDecoder()
     assert decoder.feed(bytes(bad)) == []
     assert decoder.skipped_bytes > 0
+
+
+def test_connection_notice_from_the_headset() -> None:
+    # Layout as observed in tests C2/C4; address and name here are made up.
+    args = bytes.fromhex("665544332211") + bytes([0, 31]) + b"Phone".ljust(31, b"\x00")
+    notice = decode(Message(0x03, 0x000B, args))
+    assert notice == MultipointConnectionNotice("11:22:33:44:55:66", False, "Phone")
+
+
+def test_multipoint_off_value_observed_on_hardware() -> None:
+    off = decode(Message(0x02, 0x8010, bytes.fromhex("00000100")))
+    assert off == MultipointStatus(False, 0x00010000)

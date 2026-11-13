@@ -5,7 +5,15 @@ from typing import Any
 import pytest
 from fake_headset import TEST_FIRMWARE
 from fakes import OWNER, headset_tree
-from sim_headset import LAPTOP, MULTIPOINT_OFF_RAW, PHONE, THIS_COMPUTER, Peer, SimHeadset
+from sim_headset import (
+    LAPTOP,
+    MULTIPOINT_OFF_RAW,
+    PHONE,
+    THIS_COMPUTER,
+    UNNAMED_MULTIPOINT_RAW,
+    Peer,
+    SimHeadset,
+)
 
 from shokzctl import capabilities as caps
 from shokzctl.device import Selector, build_report
@@ -193,7 +201,7 @@ async def test_multipoint_on_is_confirmed(sim: SimHeadset, monkeypatch: pytest.M
 
 
 async def test_multipoint_change_from_an_unknown_value_is_refused(sim: SimHeadset) -> None:
-    sim.state.multipoint_raw = MULTIPOINT_OFF_RAW  # no source names this value yet
+    sim.state.multipoint_raw = UNNAMED_MULTIPOINT_RAW
     headset = await open_headset(sim)
     with pytest.raises(ShokzError, match="no source names"):
         await headset.set_multipoint(True, allow_unverified=True)
@@ -205,18 +213,17 @@ async def test_multipoint_off_sends_this_computers_address(sim: SimHeadset) -> N
     result = await headset.set_multipoint(False, allow_unverified=True)
     off = [m for m in sim.sent if (m.group, m.code) == (0x01, 0x0010)]
     assert off[0].args == bytes.fromhex(THIS_COMPUTER.replace(":", ""))[::-1]
-    # No source names the "off" value, so the readback can't confirm it yet.
-    assert result.outcome is WriteOutcome.UNCERTAIN
-    assert "no source names" in (result.detail or "")
+    assert result.outcome is WriteOutcome.CONFIRMED  # off value observed in test C2
 
 
-async def test_multipoint_off_confirmed_once_the_value_is_known(
+async def test_multipoint_off_to_an_unnamed_value_is_uncertain(
     sim: SimHeadset, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(responses, "MULTIPOINT_OFF_VALUES", frozenset({MULTIPOINT_OFF_RAW}))
+    monkeypatch.setattr(responses, "MULTIPOINT_OFF_VALUES", frozenset())
     headset = await open_headset(sim)
     result = await headset.set_multipoint(False, allow_unverified=True)
-    assert result.outcome is WriteOutcome.CONFIRMED
+    assert result.outcome is WriteOutcome.UNCERTAIN
+    assert "no source names" in (result.detail or "")
 
 
 async def test_multipoint_refusal_status(sim: SimHeadset, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -321,3 +328,13 @@ async def test_connect_needs_multipoint_on(
     with pytest.raises(ShokzError, match="could drop this computer"):
         await headset.connect_peer(PHONE, allow_unverified=True)
     assert sim.writes() == []
+
+
+async def test_connect_status_0x300_is_judged_by_readback(sim: SimHeadset) -> None:
+    # The real headset acknowledges a connect with 0x00000300 and then connects (test C4).
+    sim.state.ack_status = 0x300
+    sim.state.apply_after_reads = 2
+    headset = await open_headset(sim, peer_timeout=1)
+    result = await headset.connect_peer(PHONE, allow_unverified=True)
+    assert result.outcome is WriteOutcome.CONFIRMED
+    assert result.acknowledged is True

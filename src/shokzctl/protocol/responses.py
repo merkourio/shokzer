@@ -18,14 +18,20 @@ MULTIPOINT_ON_ACK = (0x01, 0x8011)
 MULTIPOINT_OFF_ACK = (0x01, 0x8010)
 MULTIPOINT_CONNECT_ACK = (0x01, 0x800B)
 MULTIPOINT_DISCONNECT_ACK = (0x01, 0x800C)
+# Sent unprompted when a device connects or disconnects. Layout observed 2026-11-13 (test C2,
+# C4): address (reversed), connected, name length, name, like one device-list entry without
+# the index. Gadgetbridge only uses it as a cue to re-read the list (ShokzSupport.kt:729-732).
+MULTIPOINT_CONNECTION_NOTIFY = (0x03, 0x000B)
 _STATUS_ACKS = frozenset(
     {MULTIPOINT_ON_ACK, MULTIPOINT_OFF_ACK, MULTIPOINT_CONNECT_ACK, MULTIPOINT_DISCONNECT_ACK}
 )
 
 # Gadgetbridge reads MULTIPOINT_RET as one u32 and treats exactly this value as "on"
-# (ShokzSupport.kt:634-639). It names no "off" value, so anything else stays unknown here.
+# (ShokzSupport.kt:634-639). It names no "off" value. 0x00010000 was read back right after
+# MULTIPOINT_OFF was acknowledged and the phone dropped (2026-11-13, test C2). Anything else
+# stays unknown.
 MULTIPOINT_ON_VALUE = 0x00010100
-MULTIPOINT_OFF_VALUES: frozenset[int] = frozenset()
+MULTIPOINT_OFF_VALUES: frozenset[int] = frozenset({0x00010000})
 TOO_MANY_CONNECTED = 0x00000400  # MULTIPOINT_CONNECT_ACK status (ShokzSupport.kt:719-727)
 
 
@@ -73,6 +79,13 @@ class MultipointPeer:
 
 
 @dataclass(frozen=True)
+class MultipointConnectionNotice:
+    address: str
+    connected: bool
+    name: str
+
+
+@dataclass(frozen=True)
 class MultipointDevices:
     reported_count: int
     peers: tuple[MultipointPeer, ...]
@@ -92,6 +105,7 @@ type Decoded = (
     | Acknowledgement
     | MultipointStatus
     | MultipointDevices
+    | MultipointConnectionNotice
     | Unhandled
 )
 
@@ -117,6 +131,8 @@ def decode(message: Message) -> Decoded:
         return _multipoint_status(args)
     if key == MULTIPOINT_DEVICES_RET:
         return _multipoint_devices(args)
+    if key == MULTIPOINT_CONNECTION_NOTIFY:
+        return _connection_notice(args)
     return Unhandled(message, name_of(message.group, message.code))
 
 
@@ -127,6 +143,14 @@ def _multipoint_status(args: bytes) -> MultipointStatus:
     if raw == MULTIPOINT_ON_VALUE:
         return MultipointStatus(True, raw)
     return MultipointStatus(False if raw in MULTIPOINT_OFF_VALUES else None, raw)
+
+
+def _connection_notice(args: bytes) -> MultipointConnectionNotice:
+    if len(args) < 8 or len(args) < 8 + args[7]:
+        raise MalformedFrameError("MULTIPOINT_DEVICE_CONNECTION_NOTIFY is too short")
+    address = ":".join(f"{b:02X}" for b in args[:6][::-1])
+    name = args[8 : 8 + args[7]].split(b"\x00", 1)[0].decode("utf-8", "replace")
+    return MultipointConnectionNotice(address, args[6] == 1, name)
 
 
 def _multipoint_devices(args: bytes) -> MultipointDevices:

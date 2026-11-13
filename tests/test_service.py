@@ -164,13 +164,12 @@ async def test_bluez_disconnect_request_fails_the_query(lock: SessionLock) -> No
     assert connector.closed
 
 
-def test_only_reads_are_verified_for_the_tested_firmware() -> None:
+def test_hardware_tested_features_are_verified_for_that_firmware_only() -> None:
     tested = caps.capabilities("BOS_HU_R_47_20251023")
-    assert {k for k, v in tested.items() if v is Support.SUPPORTED} == {
-        "firmware_query",
-        "battery_query",
-        "eq_read",
-    }
+    assert {k for k, v in tested.items() if v is Support.SUPPORTED} == set(
+        caps.PROPRIETARY_FEATURES
+    )
+    # The app's label for the same firmware isn't what the headset reports.
     assert set(caps.capabilities("HU_R_47_20251023").values()) == {Support.UNRESOLVED}
 
 

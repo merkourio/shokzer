@@ -46,8 +46,23 @@ DESCRIPTIONS = {
 
 # Keyed by the firmware string the headset itself reports (FIRMWARE_RET), not the app's label.
 VERIFIED: Mapping[str, frozenset[str]] = {
-    # 2026-11-13, Fedora 44, shokzctl e559b79: docs/test-results.md "M3".
-    "BOS_HU_R_47_20251023": frozenset({"firmware_query", "battery_query", "eq_read"}),
+    # 2026-11-13, Fedora 44: reads at M3 (e559b79); EQ, custom EQ and multipoint in hardware
+    # tests A-C (14e6d78, 83bd5d2). docs/test-results.md.
+    "BOS_HU_R_47_20251023": frozenset(
+        {
+            "firmware_query",
+            "battery_query",
+            "eq_read",
+            "eq_write_standard",
+            "eq_write_vocal",
+            "eq_write_bass",
+            "eq_write_treble",
+            "eq_write_custom",
+            "multipoint_read",
+            "multipoint_write",
+            "multipoint_peers",
+        }
+    ),
 }
 
 

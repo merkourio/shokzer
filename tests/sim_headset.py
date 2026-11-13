@@ -17,7 +17,8 @@ from shokzctl.protocol.responses import MULTIPOINT_ON_VALUE
 THIS_COMPUTER = "AA:BB:CC:FF:FF:01"  # matches fakes.adapter()
 PHONE = "11:22:33:44:55:66"
 LAPTOP = "77:88:99:AA:BB:CC"
-MULTIPOINT_OFF_RAW = 0x00000100  # made up; real value unknown until hardware
+MULTIPOINT_OFF_RAW = 0x00010000  # observed in hardware test C2
+UNNAMED_MULTIPOINT_RAW = 0x00000100  # made up: a value no source names
 
 
 @dataclass
@@ -38,7 +39,8 @@ class SimState:
     hang_up_after_write: bool = False
     notify_eq: bool = True
     multipoint_raw: int = MULTIPOINT_ON_VALUE
-    write_status: int = 0
+    write_status: int = 0  # non-zero: the write is refused and not applied
+    ack_status: int | None = None  # status to acknowledge with while still applying
     peers: list[Peer] = field(
         default_factory=lambda: [
             Peer(THIS_COMPUTER, "fedora", True),
@@ -93,14 +95,18 @@ class SimHeadset(FakeHeadset):
             on = key == (0x01, 0x0011)
             self._write({"multipoint_raw": MULTIPOINT_ON_VALUE if on else MULTIPOINT_OFF_RAW})
             if st.ack_writes:
-                self.push(frame(0x01, key[1] | 0x8000, st.write_status.to_bytes(4, "little")))
+                self.push(frame(0x01, key[1] | 0x8000, self._ack_status().to_bytes(4, "little")))
             self._after_write()
         elif key in ((0x01, 0x000B), (0x01, 0x000C)):
             address = ":".join(f"{b:02X}" for b in message.args[::-1])
             self._write({"peer": (address, key == (0x01, 0x000B))})
             if st.ack_writes:
-                self.push(frame(0x01, key[1] | 0x8000, st.write_status.to_bytes(4, "little")))
+                self.push(frame(0x01, key[1] | 0x8000, self._ack_status().to_bytes(4, "little")))
             self._after_write()
+
+    def _ack_status(self) -> int:
+        st = self.state
+        return st.ack_status if st.ack_status is not None else st.write_status
 
     def _write(self, change: dict[str, object]) -> None:
         if self.state.write_status != 0 or not self.state.apply_writes:
