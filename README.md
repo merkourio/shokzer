@@ -80,3 +80,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Firmware reports are the most useful con
 ## License
 
 AGPL-3.0-or-later. The protocol implementation is derived from Gadgetbridge (AGPL-3.0-or-later); see [NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md).
+
+## Support
+
+If you find Shokzer useful, you can [buy me a coffee on Ko-fi](https://ko-fi.com/merkourio). Tips are optional and support my side projects.
